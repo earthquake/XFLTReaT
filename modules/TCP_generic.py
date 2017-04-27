@@ -1,0 +1,306 @@
+import sys
+
+if "TCP_generic.py" in sys.argv[0]:
+	print "[-] Instead of poking around just try: python xfltreat.py --help"
+	sys.exit(-1)
+
+import socket
+import time
+import select
+import os
+import struct
+import threading
+
+#local files
+import Stateful_module
+import client
+import common
+
+class TCP_generic_thread(Stateful_module.Stateful_thread):
+	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, verbosity, config, module_name):
+		super(TCP_generic_thread, self).__init__()
+		threading.Thread.__init__(self)
+		self._stop = False
+		self.threadID = threadID
+		self.tunnel_r = None
+		self.tunnel_w = tunnel
+		self.packetselector = packetselector
+		self.comms_socket = comms_socket
+		self.client_addr = client_addr
+		self.verbosity = verbosity
+		self.serverorclient = serverorclient
+		self.config = config
+		self.module_name = module_name
+		self.check_result = None
+		self.timeout = 1.0
+
+		self.client = None
+		self.authenticated = False
+
+		return
+
+	def communication_initialization(self):
+		self.client = client.Client()
+		self.client.set_socket(self.comms_socket)
+
+		return
+
+	# check request: generating a challenge and sending it to the server
+	# in case the answer is that is expected, the targer is a valid server
+	def do_check(self):
+		message, self.check_result = common.check_gen()
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, None)
+
+		return
+
+	# basic authentication support. mostly placeholder for a proper 
+	# authentication. Time has not come yet.
+	def do_auth(self):
+		message = common.auth_first_step(
+			self.config.get("Global", "clientip"), self.comms_socket)
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH+message, None)
+
+		return
+
+	# Polite signal towards the server to tell that the client is leaving
+	# Can be spoofed? if there is no encryption. Who cares?
+	def do_logoff(self):
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, None)
+
+		return
+
+	def send(self, type, message, additional_data):
+		if type == common.CONTROL_CHANNEL_BYTE:
+			transformed_message = self.transform(common.CONTROL_CHANNEL_BYTE+message, 1)
+		else:
+			transformed_message = self.transform(common.DATA_CHANNEL_BYTE+message, 1)
+
+		return self.comms_socket.send(struct.pack(">H", len(transformed_message))+transformed_message)
+
+	def recv(self):
+		message = ""
+		length2b = self.comms_socket.recv(2, socket.MSG_PEEK)
+
+		if len(length2b) == 0:
+			if self.serverorclient:
+				common.internal_print("Client lost. Closing down thread.", -1)
+			else:
+				common.internal_print("Server lost. Closing down.", -1)
+			self.stop()
+			self.cleanup()
+
+			return ""
+
+		if len(length2b) != 2:
+
+			return ""
+
+		length = struct.unpack(">H", length2b)[0]+2
+		received = 0
+		while received < length:
+			message += self.comms_socket.recv(length-received)
+			received = len(message)
+
+		if (length != len(message)):
+			common.internal_print("Error length mismatch", -1)
+			return ""
+		common.internal_print("TCP read: {0}".format(len(message)), 0, self.verbosity, common.DEBUG)
+
+		return self.transform(message[2:],0)
+
+
+	def cleanup(self):
+		try:
+			self.comms_socket.close()
+		except:
+			pass
+		try:
+			os.close(self.packetselector.get_pipe_w())		
+		except:
+			pass
+
+		if self.serverorclient:
+			self.packetselector.delete_client(self.client)
+
+	def communication(self):
+		rlist = [self.comms_socket]
+		wlist = []
+		xlist = []
+
+		while not self._stop:
+			if self.tunnel_r:
+				rlist = [self.tunnel_r, self.comms_socket]
+			try:
+				readable, writable, exceptional = select.select(rlist, wlist, xlist, self.timeout)
+			except select.error, e:
+				break	
+			if self._stop:
+				self.comms_socket.close()
+				break
+			try:
+				for s in readable:
+					if (s is self.tunnel_r) and not self._stop:
+						message = os.read(self.tunnel_r, 4096)
+						while True:
+							if (len(message) < 4) or (message[0:1] != "\x45"): #Only care about IPv4
+								break
+							packetlen = struct.unpack(">H", message[2:4])[0] # IP Total length
+							if packetlen > len(message):
+								message += os.read(self.tunnel_r, 4096)
+							readytogo = message[0:packetlen]
+							message = message[packetlen:]
+							self.send(common.DATA_CHANNEL_BYTE, readytogo, None)
+
+							common.internal_print("TCP sent: {0}".format(len(readytogo)), 0, self.verbosity, common.DEBUG)
+
+					if (s is self.comms_socket) and not self._stop:
+						message = self.recv()
+						if len(message) == 0:
+							continue
+
+						if message[0:1] == common.CONTROL_CHANNEL_BYTE:
+							if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], None):
+								continue
+							else:
+								self.stop()
+								break
+
+						if self.authenticated:
+							try:
+								os.write(self.tunnel_w, message[len(common.CONTROL_CHANNEL_BYTE):])
+							except OSError as e:
+								print e # wut?
+
+			except (socket.error, OSError, IOError):
+				if self.serverorclient:
+					common.internal_print("Client lost. Closing down thread.", -1)
+					self.cleanup()
+
+					return
+				if not self.serverorclient:
+					common.internal_print("Server lost. Closing connection.", -1)
+					self.comms_socket.close()
+				break
+			except:
+				print "another error"
+				raise
+
+		self.cleanup()
+
+		return True
+
+class TCP_generic(Stateful_module.Stateful_module):
+
+	module_name = "TCP generic"
+	module_configname = "TCP_generic"
+	module_description = """Generic TCP module that can listen on any port.
+		This module lacks of any encryption or encoding, which comes to the interface
+		goes to the socket back and forth. Northing special.
+		"""
+
+	def __init__(self):
+		super(TCP_generic, self).__init__()
+		self.server_socket = None
+
+		return
+
+	def stop(self):
+		self._stop = True
+
+		if self.threads:
+			for t in self.threads:
+				t.stop()
+		
+		# not so nice solution to get rid of the block of accept()
+		# unfortunately close() does not help on the block
+		server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		server_socket.connect((self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
+
+		return
+
+	def serve(self):
+		client_socket = server_socket = None
+
+		common.internal_print("Starting server: {0} on {1}:{2}".format(self.get_module_name(), self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
+		self.threads = []
+		threadsnum = 0
+		
+		server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		try:
+			server_socket.bind((self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
+			while not self._stop:
+				server_socket.listen(1) #?? 1 ??
+				client_socket, client_addr = server_socket.accept()
+				common.internal_print(("Client connected: {0}".format(client_addr)), 0, self.verbosity, common.DEBUG)
+
+				threadsnum = threadsnum + 1
+				thread = TCP_generic_thread(threadsnum, 1, self.tunnel, self.packetselector, client_socket, client_addr, self.verbosity, self.config, self.get_module_name())
+				thread.start()
+				self.threads.append(thread)
+
+		except socket.error as exception:
+			# [Errno 98] Address already in use
+			if exception.args[0] != 98:
+				raise
+			else:
+				common.internal_print("Starting failed, port is in use: {0} on {1}:{2}".format(self.get_module_name(), self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))), -1)
+
+		self.cleanup(server_socket)
+
+		return
+
+	def client(self):
+		try:
+			common.internal_print("Starting client: {0}".format(self.get_module_name()))
+
+			client_fake_thread = None
+
+			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			server_socket.connect((self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport"))))
+
+			client_fake_thread = TCP_generic_thread(0, 0, self.tunnel, None, server_socket, None, self.verbosity, self.config, self.get_module_name())
+			client_fake_thread.do_auth()
+			client_fake_thread.communication()
+
+		except KeyboardInterrupt:
+			if client_fake_thread:
+				client_fake_thread.do_logoff()
+			self.cleanup(server_socket)
+			raise
+		except socket.error:
+			common.internal_print("Connection error: {0}".format(self.get_module_name()), -1)
+			self.cleanup(server_socket)
+			raise
+
+		self.cleanup(server_socket)
+
+		return
+
+	def check(self):
+		try:
+			common.internal_print("Checking module on server: {0}".format(self.get_module_name()))
+
+			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			#server_socket.settimeout(2)
+			server_socket.connect((self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport"))))
+			client_fake_thread = TCP_generic_thread(0, 0, None, None, server_socket, None, self.verbosity, self.config, self.get_module_name())
+			client_fake_thread.do_check()
+			client_fake_thread.communication()
+
+			self.cleanup(server_socket)
+
+		except socket.timeout:
+			common.internal_print("Checking failed: {0}".format(self.get_module_name()), -1)
+			self.cleanup(server_socket)
+		except socket.error:
+			common.internal_print("Connection error: {0}".format(self.get_module_name()), -1)
+			self.cleanup(server_socket)
+
+		return
+
+	def cleanup(self, socket):
+		common.internal_print("Shutting down module: {0}".format(self.get_module_name()))
+		socket.close()
+
+		return
