@@ -59,7 +59,7 @@ class Stateless_module(Generic_module):
 		return
 
 	def remove_authenticated_client(self, additional_data):
-		addr = additional_data[0] # UDP specific
+		addr = additional_data # UDP specific
 		c = common.lookup_client_pub(self.clients, addr)
 		if c:
 			self.packetselector.delete_client(c)
