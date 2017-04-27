@@ -75,7 +75,9 @@ class Interface:
 	 	awfully choose the first of the default routes and don't care 
 	 	about the rest. This could lead to serious problems.
 	 	'''
-		self.orig_default_gw = self.ip.get_default_routes()[0]['attrs'][1][1]
+	 	for attrs in self.ip.get_default_routes()[0]['attrs']:
+	 		if attrs[0] == "RTA_GATEWAY":
+				self.orig_default_gw = attrs[1]
 		self.ip.route('delete', gateway=self.orig_default_gw, dst="0.0.0.0")
 		self.ip.route('add', gateway=ip, dst="0.0.0.0")
 		self.ip.route('add', gateway=self.orig_default_gw, dst=serverip, mask=32)
