@@ -89,9 +89,9 @@ Options:
 		common.internal_print("Parsing config file")
 		config = ConfigParser.ConfigParser()
 		config.read(self.configfile)
-		if not config.has_section("Global"):
-			common.internal_print("config file missing 'Global' section", -1)
-			exit(-1)	
+
+		if not common.config_sanity_check(config, (self.servermode or (not self.clientmode and not self.checkmode))):
+			exit(-1)
 
 		# Loading modules from modules/ directory
 		# 1. listing and loading all modules except forbidden ones

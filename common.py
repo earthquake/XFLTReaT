@@ -45,6 +45,61 @@ def internal_print(message, feedback = 0, verbosity = 0, severity = 0):
 			prefix = "[+]"
 		print "%s %s%s" % (prefix, debug, message)
 
+def config_sanity_check(config, serverorclient):
+	if not config.has_section("Global"):
+		internal_print("config file missing 'Global' section", -1)
+
+		return False
+
+	if not config.has_option("Global", "remoteserverip"):
+		internal_print("'remoteserverip' option is missing from 'Global' section", -1)
+
+		return False
+
+	if not config.has_option("Global", "mtu"):
+		internal_print("'mtu' option is missing from 'Global' section", -1)
+
+		return False
+
+	if serverorclient:
+		if not config.has_option("Global", "serverif"):
+			internal_print("'serverif' option is missing from 'Global' section", -1)
+
+			return False
+
+		if not config.has_option("Global", "serverip"):
+			internal_print("'serverip' option is missing from 'Global' section", -1)
+
+			return False
+
+		if not config.has_option("Global", "servernetmask"):
+			internal_print("'servernetmask' option is missing from 'Global' section", -1)
+
+			return False
+
+		if not config.has_option("Global", "serverbind"):
+			internal_print("'serverbind' option is missing from 'Global' section", -1)
+
+			return False
+
+	else:
+		if not config.has_option("Global", "clientif"):
+			internal_print("'clientif' option is missing from 'Global' section", -1)
+
+			return False
+
+		if not config.has_option("Global", "clientip"):
+			internal_print("'clientip' option is missing from 'Global' section", -1)
+
+			return False
+
+		if not config.has_option("Global", "clientnetmask"):
+			internal_print("'clientnetmask' option is missing from 'Global' section", -1)
+
+			return False
+
+	return True
+
 def check_gen():
 	number1 = random.randint(0, 4294967295)
 	number2 = random.randint(0, 4294967295)
