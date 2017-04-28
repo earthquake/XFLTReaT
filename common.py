@@ -38,11 +38,11 @@ def internal_print(message, feedback = 0, verbosity = 0, severity = 0):
 		debug = "DEBUG: "
 	if verbosity >= severity:
 		if feedback == -1:
-			prefix = "[-]"
+			prefix = "\033[91m[-]"
 		if feedback == 0:
-			prefix = "[*]"
+			prefix = "\033[39m[*]"
 		if feedback == 1:
-			prefix = "[+]"
+			prefix = "\033[92m[+]"
 		print "%s %s%s" % (prefix, debug, message)
 
 def config_sanity_check(config, serverorclient):
