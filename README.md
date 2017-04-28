@@ -6,11 +6,12 @@ This is just one thing of many that was missing from the Internet. If you got ti
 * TCP
 * UDP
 * ICMP
-* SOCKS 4, 4a, 5
+* SOCKS v4, 4a, 5
 * HTTP CONNECT
 
 ### Setup ###
 * git clone https://bitbucket.org/eqarmada/xfltreat/
+* pip install -r requirements.txt
 * edit xfltreat.conf
 * server side: python xfltreat.py
 * client side: python xfltreat.py --client
