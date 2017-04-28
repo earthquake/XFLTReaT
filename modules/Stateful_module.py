@@ -77,7 +77,7 @@ class Stateful_thread(threading.Thread):
 	# Main function of the thread. Communication setup and actual communication
 	def run(self):
 		self.communication_initialization()
-		self.communication()
+		self.communication(False)
 
 		return
 
@@ -136,7 +136,7 @@ class Stateful_thread(threading.Thread):
 	# PLACEHOLDER: communication function
 	# What comes here: this is the tricky part, where everything is handled 
 	# that matters.
-	def communication(self):
+	def communication(self, is_check):
 
 		return
 

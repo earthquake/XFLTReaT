@@ -22,7 +22,7 @@ import threading
 class Stateless_module(Generic_module):
 	def __init__(self):
 		super(Stateless_module, self).__init__()
-		self.timeout = 1.0
+		self.timeout = 3.0
 		self.controlchannel = controlchannel.ControlChannel()
 
 		# control message handlers
@@ -124,7 +124,7 @@ class Stateless_module(Generic_module):
 	# PLACEHOLDER: communication function
 	# What comes here: this is the tricky part, where everything is handled 
 	# that matters.
-	def communication(self):
+	def communication(self, is_check):
 
 		return
 

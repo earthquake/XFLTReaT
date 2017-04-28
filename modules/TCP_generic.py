@@ -32,7 +32,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 		self.config = config
 		self.module_name = module_name
 		self.check_result = None
-		self.timeout = 1.0
+		self.timeout = 3.0
 
 		self.client = None
 		self.authenticated = False
@@ -122,7 +122,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 		if self.serverorclient:
 			self.packetselector.delete_client(self.client)
 
-	def communication(self):
+	def communication(self, is_check):
 		rlist = [self.comms_socket]
 		wlist = []
 		xlist = []
@@ -257,11 +257,12 @@ class TCP_generic(Stateful_module.Stateful_module):
 			client_fake_thread = None
 
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			server_socket.settimeout(3)
 			server_socket.connect((self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport"))))
 
 			client_fake_thread = TCP_generic_thread(0, 0, self.tunnel, None, server_socket, None, self.verbosity, self.config, self.get_module_name())
 			client_fake_thread.do_auth()
-			client_fake_thread.communication()
+			client_fake_thread.communication(False)
 
 		except KeyboardInterrupt:
 			if client_fake_thread:
@@ -282,19 +283,22 @@ class TCP_generic(Stateful_module.Stateful_module):
 			common.internal_print("Checking module on server: {0}".format(self.get_module_name()))
 
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-			#server_socket.settimeout(2)
+			server_socket.settimeout(3)
 			server_socket.connect((self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport"))))
 			client_fake_thread = TCP_generic_thread(0, 0, None, None, server_socket, None, self.verbosity, self.config, self.get_module_name())
 			client_fake_thread.do_check()
-			client_fake_thread.communication()
+			client_fake_thread.communication(True)
 
 			self.cleanup(server_socket)
 
 		except socket.timeout:
 			common.internal_print("Checking failed: {0}".format(self.get_module_name()), -1)
 			self.cleanup(server_socket)
-		except socket.error:
-			common.internal_print("Connection error: {0}".format(self.get_module_name()), -1)
+		except socket.error as exception:
+			if exception.args[0] == 111:
+				common.internal_print("Checking failed: {0}".format(self.get_module_name()), -1)
+			else:
+				common.internal_print("Connection error: {0}".format(self.get_module_name()), -1)
 			self.cleanup(server_socket)
 
 		return

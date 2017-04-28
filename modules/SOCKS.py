@@ -171,12 +171,13 @@ class SOCKS(TCP_generic.TCP_generic):
 			client_fake_thread = None
 
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			server_socket.settimeout(3)
 			server_socket.connect((self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
 			if self.socks_handshake(server_socket):
 				client_fake_thread = SOCKS_thread(0, 0, self.tunnel, None, server_socket, None, self.verbosity, self.config, self.get_module_name())
 				client_fake_thread.do_auth()
-				client_fake_thread.communication()
+				client_fake_thread.communication(False)
 
 			server_socket.close()
 
@@ -201,21 +202,24 @@ class SOCKS(TCP_generic.TCP_generic):
 			common.internal_print("Checking module on server: {0}, Version: {1} ({2}:{3})".format(self.get_module_name(), version, self.config.get(self.get_module_configname(), "proxyip"), self.config.get(self.get_module_configname(), "proxyport")))
 
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-			server_socket.settimeout(5)
+			server_socket.settimeout(3)
 			server_socket.connect((self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
 			if self.socks_handshake(server_socket):
 				client_fake_thread = SOCKS_thread(0, 0, None, None, server_socket, None, self.verbosity, self.config, self.get_module_name())
 				client_fake_thread.do_check()
-				client_fake_thread.communication()
+				client_fake_thread.communication(True)
 
 			server_socket.close()
 
 		except socket.timeout:
 			common.internal_print("Checking failed: {0}".format(self.get_module_name()), -1)
 			self.cleanup(server_socket)
-		except socket.error:
-			common.internal_print("Connection error: {0}".format(self.get_module_name()), -1)
+		except socket.error as exception:
+			if exception.args[0] == 111:
+				common.internal_print("Checking failed: {0}".format(self.get_module_name()), -1)
+			else:
+				common.internal_print("Connection error: {0}".format(self.get_module_name()), -1)
 			self.cleanup(server_socket)
 
 		return

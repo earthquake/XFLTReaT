@@ -86,7 +86,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 
 		return message[2:], addr
 
-	def communication(self):
+	def communication(self, is_check):
 		self.rlist = [self.comms_socket]
 		if not self.serverorclient and self.tunnel:
 				self.rlist = [self.tunnel, self.comms_socket]
@@ -100,6 +100,8 @@ class UDP_generic(Stateless_module.Stateless_module):
 				print e
 				break
 
+			if (not readable) and is_check:
+				raise socket.timeout
 			try:
 				for s in readable:
 					if (s in self.rlist) and not (s is self.comms_socket):
@@ -179,7 +181,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 			self.authenticated = False
 
 			self.communication_initialization()
-			self.communication() 
+			self.communication(False) 
 			
 		except KeyboardInterrupt:
 
@@ -200,7 +202,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 			self.authenticated = False
 
 			self.do_auth()
-			self.communication()
+			self.communication(False)
 
 		except KeyboardInterrupt:
 			self.do_logoff()
@@ -219,18 +221,19 @@ class UDP_generic(Stateless_module.Stateless_module):
 			common.internal_print("Checking module on server: {0}".format(self.get_module_name()))
 
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-			#server_socket.settimeout(2)
 			self.server_tuple = (self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport")))
 			self.comms_socket = server_socket
 			self.serverorclient = 0
 			self.authenticated = True
 
 			self.do_check()
-			self.communication()
+			self.communication(True)
 
 		except KeyboardInterrupt:
 			self.cleanup()
 			raise
+		except socket.timeout:
+			common.internal_print("Checking failed: {0}".format(self.get_module_name()), -1)
 		except socket_error:
 			self.cleanup()
 			raise

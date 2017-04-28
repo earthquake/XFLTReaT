@@ -152,7 +152,7 @@ class ICMP(Stateless_module.Stateless_module):
 
 		return message[3:], addr, identifier, sequence, queue_length
 
-	def communication(self):
+	def communication(self, is_check):
 		sequence = 0
 		identifier = 0
 		self.rlist = [self.comms_socket]
@@ -169,6 +169,8 @@ class ICMP(Stateless_module.Stateless_module):
 				break
 			try:
 				if not readable:
+					if is_check:
+						raise socket.timeout
 					if not self.serverorclient:
 						if self.authenticated:
 							self.ICMP_sequence = (self.ICMP_sequence + 1) % 65536
@@ -307,7 +309,7 @@ class ICMP(Stateless_module.Stateless_module):
 			self.authenticated = False
 
 			self.communication_initialization()
-			self.communication() 
+			self.communication(False) 
 			
 		except KeyboardInterrupt:
 
@@ -330,7 +332,7 @@ class ICMP(Stateless_module.Stateless_module):
 
 			self.communication_initialization()
 			self.do_auth()
-			self.communication()
+			self.communication(False)
 
 		except KeyboardInterrupt:
 			self.do_logoff()
@@ -352,11 +354,13 @@ class ICMP(Stateless_module.Stateless_module):
 			self.authenticated = True
 			self.communication_initialization()
 			self.do_check()
-			self.communication()
+			self.communication(True)
 
 		except KeyboardInterrupt:
 			self.cleanup()
 			raise
+		except socket.timeout:
+			common.internal_print("Checking failed: {0}".format(self.get_module_name()), -1)
 
 		self.cleanup()
 
