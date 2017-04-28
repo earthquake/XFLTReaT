@@ -149,7 +149,7 @@ class SOCKS(TCP_generic.TCP_generic):
 
 						for i in range(len(self.socks.SOCKS5_RESPONSES)):
 							if response[1:2] == self.socks.SOCKS5_RESPONSES[i]:
-								common.internal_print("Connection failed through the proxy server: {0}".format(self.socks.SOCKS4_RESPONSES_STR[i]), -1)
+								common.internal_print("Connection failed through the proxy server: {0}".format(self.socks.SOCKS5_RESPONSES_STR[i]), -1)
 								return False
 
 						return False

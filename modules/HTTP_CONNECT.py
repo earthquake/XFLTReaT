@@ -57,7 +57,7 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 		response = server_socket.recv(4096)
 
 		if response[0:12] != "HTTP/1.1 200":
-			common.internal_print("Connection failed: {0}".format(response[0:128]), -1)
+			common.internal_print("Connection failed: {0}".format(response[0:response.find("\n")]), -1)
 
 			return False
 
