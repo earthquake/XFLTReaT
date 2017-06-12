@@ -11,7 +11,7 @@ This is just one thing of many that was missing from the Internet. If you got ti
 
 ### Setup ###
 * git clone https://bitbucket.org/eqarmada/xfltreat/
-* pip install pyroute2
+* pip install -r requirements.txt
 * edit xfltreat.conf
 * server side: python xfltreat.py
 * client side: python xfltreat.py --client
