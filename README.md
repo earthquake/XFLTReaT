@@ -6,7 +6,7 @@ This is just one thing of many that was missing from the Internet. If you got ti
 * TCP
 * UDP
 * ICMP
-* SOCKS 4, 4a, 5
+* SOCKS v4, 4a, 5
 * HTTP CONNECT
 
 ### Setup ###
