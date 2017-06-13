@@ -74,9 +74,7 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 
 			return False		
 
-		return False
-
-		if not is_ipv4(self.config.get(self.get_module_configname(), "proxyip")) and not is_ipv6(self.get_module_configname(), "proxyip"):
+		if not common.is_ipv4(self.config.get(self.get_module_configname(), "proxyip")) and not common.is_ipv6(self.config.get(self.get_module_configname(), "proxyip")):
 			common.internal_print("'proxyip' should be ipv4 or ipv6 address in '{0}' section".format(self.get_module_configname()), -1)
 
 			return False

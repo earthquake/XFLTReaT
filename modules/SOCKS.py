@@ -162,9 +162,28 @@ class SOCKS(TCP_generic.TCP_generic):
 
 		return True
 
+	def sanity_check(self):
+		if not self.config.has_option(self.get_module_configname(), "proxyip"):
+			common.internal_print("'proxyip' option is missing from '{0}' section".format(self.get_module_configname()), -1)
+
+			return False
+
+		if not self.config.has_option(self.get_module_configname(), "proxyport"):
+			common.internal_print("'proxyport' option is missing from '{0}' section".format(self.get_module_configname()), -1)
+
+			return False		
+
+		if not common.is_ipv4(self.config.get(self.get_module_configname(), "proxyip")) and not common.is_ipv6(self.config.get(self.get_module_configname(), "proxyip")):
+			common.internal_print("'proxyip' should be ipv4 or ipv6 address in '{0}' section".format(self.get_module_configname()), -1)
+
+			return False
+
+		return True
 
 	def client(self):
 		try:
+			if not self.sanity_check():
+				return
 			version = self.config.get(self.get_module_configname(), "version")
 			common.internal_print("Starting client: {0}, Version: {1} ({2}:{3})".format(self.get_module_name(), version, self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
