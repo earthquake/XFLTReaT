@@ -27,7 +27,7 @@ Options:
   -c\t--client\t\tturn on client mode
   \t--check\t\t\tcheck modules on server side
   \t--config\t\tspecify config file (default: xfltreat.conf)
-  -v\t--verbose\t\t1 = verbose mode
+  \t--verbose\t\t1 = verbose mode
   \t\t\t\t2 = debug mode"""
 
   		return
@@ -49,7 +49,7 @@ Options:
 		self.clientmode = 0
 		self.checkmode = 0
 
-		self.short = "hscv"
+		self.short = "hsc"
 		self.long = ["help", "server", "client", "check", "config=", "verbose="]
 
 		self.forbidden_modules = ["Generic_module", "Stateful_module", "Stateless_module"]
@@ -74,8 +74,13 @@ Options:
 				self.checkmode = 1
 			elif opt in ("--config"):
 				self.configfile = arg
-			elif opt in ("-v", "--verbose"):
-				self.verbosity = int(arg)
+			elif opt in ("--verbose"):
+				try:
+					self.verbosity = int(arg)
+				except:
+					common.internal_print("Invalid verbose value: {0}".format(arg), -1)
+					exit(-1)
+
 
 		if (not self.clientmode and not self.checkmode):
 			self.servermode = 1
