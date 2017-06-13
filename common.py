@@ -56,6 +56,11 @@ def config_sanity_check(config, serverorclient):
 
 		return False
 
+	if not is_ipv4(config.get("Global", "remoteserverip")) and not is_ipv6(config.get("Global", "remoteserverip")) :
+		internal_print("'remoteserverip' should be ipv4 or ipv6 address in 'Global' section", -1)
+
+		return False
+
 	if not config.has_option("Global", "mtu"):
 		internal_print("'mtu' option is missing from 'Global' section", -1)
 
