@@ -46,7 +46,7 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 					common.internal_print("[Global] remoteserverip value is not an IPv4 address", -1)
 
 					return False
-				return False
+				remoteserver = self.config.get("Global", "remoteserverip")
 
 
 		serverport = int(self.config.get(self.get_module_configname(), "serverport"))
