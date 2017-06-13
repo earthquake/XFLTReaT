@@ -184,7 +184,8 @@ Options:
 						continue
 
 					if config.has_option(m.get_module_configname(), "proxyip"):
-						remoteserverip = config.get(m.get_module_configname(), "proxyip")
+						if common.is_ipv4(config.get(m.get_module_configname(), "proxyip")) or common.is_ipv6(config.get(m.get_module_configname(), "proxyip")):
+							remoteserverip = config.get(m.get_module_configname(), "proxyip")
 
 					m.__init_thread__(0, config, client_tunnel, None, self.verbosity)
 					
@@ -216,7 +217,6 @@ Options:
 					m.check()
 				except KeyboardInterrupt:
 					pass
-
 		# 
 		if not module_threads:
 			common.internal_print("Exiting...")
@@ -224,6 +224,7 @@ Options:
 				ps.stop()
 		else:
 			try:
+				common.internal_print("Please use CTRL+C to exit...")
 				while True:
 					time.sleep(1000)
 			except KeyboardInterrupt:
