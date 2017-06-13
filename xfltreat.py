@@ -88,7 +88,11 @@ Options:
 		# Looking for and parsing config file.
 		common.internal_print("Parsing config file")
 		config = ConfigParser.ConfigParser()
-		config.read(self.configfile)
+		try:
+			config.read(self.configfile)
+		except:
+			common.internal_print("Invalid or malformed configuration file specified", -1)
+			exit(-1)
 
 		if not common.config_sanity_check(config, (self.servermode or (not self.clientmode and not self.checkmode))):
 			exit(-1)
