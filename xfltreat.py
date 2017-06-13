@@ -32,7 +32,7 @@ Options:
 
   		return
 
-  	def banner(self,):
+  	def banner(self):
   		print """
 ,--.   ,--.,------.,--.,--------.,------.                ,--------. 
  \  `.'  / |  .---'|  |'--.  .--'|  .--. ' ,---.  ,--,--.'--.  .--' 
@@ -136,6 +136,11 @@ Options:
 			if enabled == "yes":
 				# looks like the module is enabled, adding to modules|_enabled[]
 				modules_enabled.append(m)
+
+		# check if more than one module is enabled for client mode
+		if self.clientmode and (len(modules_enabled)>1):
+			common.internal_print("In client mode only one module can be used.", -1)
+			exit(-1)
 
 		# One Interface to rule them all, One Interface to find them,
 		# One Interface to bring them all and in the darkness bind them
