@@ -128,6 +128,10 @@ class Stateless_module(Generic_module):
 
 		return
 
+	def sanity_check(self):
+		
+		return
+
 	# PLACEHOLDER: server part of the module
 	# What comes here: setup, bind, listen, accept, fork/thread, cleanup
 	def serve(self):

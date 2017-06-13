@@ -167,8 +167,24 @@ class UDP_generic(Stateless_module.Stateless_module):
 
 		return
 
+	def sanity_check(self):
+		if not self.config.has_option(self.get_module_configname(), "serverport"):
+			common.internal_print("'serverport' option is missing from '{0}' section".format(self.get_module_configname()), -1)
+
+			return False
+
+		try:
+			convert = int(self.config.get(self.get_module_configname(), "serverport"))
+		except:
+			common.internal_print("'serverport' is not an integer in '{0}' section".format(self.get_module_configname()), -1)
+			return False
+
+		return True
+
 	def serve(self):
 		server_socket = None
+		if not self.sanity_check():
+			return 
 		try:
 			common.internal_print("Starting server: {0} on {1}:{2}".format(self.get_module_name(), self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
 		
@@ -185,14 +201,16 @@ class UDP_generic(Stateless_module.Stateless_module):
 			
 		except KeyboardInterrupt:
 
-				self.cleanup()
-				return
+			self.cleanup()
+			return
 
 		self.cleanup()
 
 		return
 
 	def client(self):
+		if not self.sanity_check():
+			return 
 		try:
 			common.internal_print("Starting client: {0}".format(self.get_module_name()))
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -217,6 +235,8 @@ class UDP_generic(Stateless_module.Stateless_module):
 		return
 
 	def check(self):
+		if not self.sanity_check():
+			return 
 		try:
 			common.internal_print("Checking module on server: {0}".format(self.get_module_name()))
 

@@ -213,17 +213,37 @@ class TCP_generic(Stateful_module.Stateful_module):
 		
 		# not so nice solution to get rid of the block of accept()
 		# unfortunately close() does not help on the block
-		server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		server_socket.connect((self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
+		try:
+			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			server_socket.connect((self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
+		except:
+			pass
 
 		return
 
+	def sanity_check(self):
+		if not self.config.has_option(self.get_module_configname(), "serverport"):
+			common.internal_print("'serverport' option is missing from '{0}' section".format(self.get_module_configname()), -1)
+
+			return False
+
+		try:
+			convert = int(self.config.get(self.get_module_configname(), "serverport"))
+		except:
+			common.internal_print("'serverport' is not an integer in '{0}' section".format(self.get_module_configname()), -1)
+			return False
+
+		return True
+
 	def serve(self):
 		client_socket = server_socket = None
-
-		common.internal_print("Starting server: {0} on {1}:{2}".format(self.get_module_name(), self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
 		self.threads = []
 		threadsnum = 0
+
+		if not self.sanity_check():
+			return 
+
+		common.internal_print("Starting server: {0} on {1}:{2}".format(self.get_module_name(), self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
 		
 		server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -252,6 +272,8 @@ class TCP_generic(Stateful_module.Stateful_module):
 
 	def client(self):
 		try:
+			if not self.sanity_check():
+				return 
 			common.internal_print("Starting client: {0}".format(self.get_module_name()))
 
 			client_fake_thread = None
@@ -280,6 +302,8 @@ class TCP_generic(Stateful_module.Stateful_module):
 
 	def check(self):
 		try:
+			if not self.sanity_check():
+				return 
 			common.internal_print("Checking module on server: {0}".format(self.get_module_name()))
 
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

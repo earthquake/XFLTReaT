@@ -64,6 +64,8 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 		return True
 
 	def sanity_check(self):
+		if not super(HTTP_CONNECT, self).sanity_check():
+			return False
 		if not self.config.has_option(self.get_module_configname(), "proxyip"):
 			common.internal_print("'proxyip' option is missing from '{0}' section".format(self.get_module_configname()), -1)
 
