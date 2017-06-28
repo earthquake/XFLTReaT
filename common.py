@@ -46,6 +46,17 @@ def internal_print(message, feedback = 0, verbosity = 0, severity = 0):
 			prefix = "\033[92m[+]"
 		print "%s %s%s\033[39m" % (prefix, debug, message)
 
+def check_modules_installed():
+	reqs = ["pyroute2"]
+	allinstalled = True
+	for m in reqs:
+		if m not in sys.modules:
+			allinstalled = False
+			internal_print("The following python modules was not installed: {0}".format(m), -1)
+
+	return allinstalled
+
+
 def check_router_settings(config):
 	if platform.system() == "Linux":
 		if open('/proc/sys/net/ipv4/ip_forward','r').read()[0:1] == "0":

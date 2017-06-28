@@ -82,6 +82,10 @@ Options:
 					exit(-1)
 
 
+		# check requirements (python modules) whether or not installed
+		if not common.check_modules_installed():
+			exit(-1)
+
 		if (not self.clientmode and not self.checkmode):
 			self.servermode = 1
 
