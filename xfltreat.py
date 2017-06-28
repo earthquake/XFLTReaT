@@ -102,6 +102,12 @@ Options:
 		if not common.config_sanity_check(config, (self.servermode or (not self.clientmode and not self.checkmode))):
 			exit(-1)
 
+		# Check system config for routing. If the OS was not set up for IP 
+		# forwarding then we need to exit.
+		if self.servermode:
+			if not common.check_router_settings(config):
+				exit(-1)
+
 		# Loading modules from modules/ directory
 		# 1. listing and loading all modules except forbidden ones
 		common.internal_print("Loading all modules from 'modules' directory")

@@ -9,6 +9,7 @@ import random
 import socket
 import os
 import re
+import platform
 
 DATA_CHANNEL_BYTE 	 = "\x01"
 CONTROL_CHANNEL_BYTE = "\x00"
@@ -44,6 +45,17 @@ def internal_print(message, feedback = 0, verbosity = 0, severity = 0):
 		if feedback == 1:
 			prefix = "\033[92m[+]"
 		print "%s %s%s\033[39m" % (prefix, debug, message)
+
+def check_router_settings(config):
+	if platform.system() == "Linux":
+		if open('/proc/sys/net/ipv4/ip_forward','r').read()[0:1] == "0":
+			internal_print("The IP forwarding is not set.", -1)
+			internal_print("Please use the following two commands to set it properly (root needed):\n#\tsysctl -w net.ipv4.ip_forward=1\n#\tiptables -t nat -A POSTROUTING -s {0}/{1} -o [YOUR_INTERFACE/e.g./eth0] -j MASQUERADE\n".format(config.get("Global", "serverip"), config.get("Global", "servernetmask")))
+
+			return False
+
+	return True
+
 
 def config_sanity_check(config, serverorclient):
 	if not config.has_section("Global"):
