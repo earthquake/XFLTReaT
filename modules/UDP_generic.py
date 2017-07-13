@@ -59,6 +59,8 @@ class UDP_generic(Stateless_module.Stateless_module):
 		else:
 			transformed_message = self.transform(common.DATA_CHANNEL_BYTE+message, 1)
 
+		common.internal_print("UDP sent: {0}".format(len(transformed_message)), 0, self.verbosity, common.DEBUG)
+		
 		return self.comms_socket.sendto(struct.pack(">H", len(transformed_message))+transformed_message, addr)
 
 	def recv(self):
@@ -126,8 +128,6 @@ class UDP_generic(Stateless_module.Stateless_module):
 							else:
 								if self.authenticated:
 									self.send(common.DATA_CHANNEL_BYTE, readytogo, (self.server_tuple))
-
-							common.internal_print("UDP sent: {0}".format(len(readytogo)), 0, self.verbosity, common.DEBUG)
 
 
 					if s is self.comms_socket:

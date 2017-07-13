@@ -75,6 +75,8 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 		else:
 			transformed_message = self.transform(common.DATA_CHANNEL_BYTE+message, 1)
 
+		common.internal_print("TCP sent: {0}".format(len(transformed_message)), 0, self.verbosity, common.DEBUG)
+		
 		return self.comms_socket.send(struct.pack(">H", len(transformed_message))+transformed_message)
 
 	def recv(self):
@@ -150,8 +152,6 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 							readytogo = message[0:packetlen]
 							message = message[packetlen:]
 							self.send(common.DATA_CHANNEL_BYTE, readytogo, None)
-
-							common.internal_print("TCP sent: {0}".format(len(readytogo)), 0, self.verbosity, common.DEBUG)
 
 					if (s is self.comms_socket) and not self._stop:
 						message = self.recv()
