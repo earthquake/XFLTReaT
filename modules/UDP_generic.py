@@ -226,7 +226,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 			self.do_logoff()
 			self.cleanup()
 			raise
-		except socket_error:
+		except socket.error:
 			self.cleanup()
 			raise
 
@@ -254,7 +254,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 			raise
 		except socket.timeout:
 			common.internal_print("Checking failed: {0}".format(self.get_module_name()), -1)
-		except socket_error:
+		except socket.error:
 			self.cleanup()
 			raise
 
