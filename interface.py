@@ -15,7 +15,7 @@ import pyroute2
 
 import common
 
-class Interface:
+class Interface():
 
 	ip = pyroute2.IPRoute()
 

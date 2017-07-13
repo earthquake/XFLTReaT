@@ -10,7 +10,7 @@ import Queue
 # local modules
 import client
 
-class ICMP_Proto:
+class ICMP_Proto():
 
 	ICMP_ECHO_REQUEST  = 8
 	ICMP_ECHO_RESPONSE = 0
