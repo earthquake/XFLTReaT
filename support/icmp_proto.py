@@ -1,6 +1,6 @@
 import sys
 
-if "ICMP.py" in sys.argv[0]:
+if "icmp_proto.py" in sys.argv[0]:
 	print "[-] Instead of poking around just try: python xfltreat.py --help"
 	sys.exit(-1)
 
