@@ -31,6 +31,7 @@ class Generic_module(threading.Thread):
 
 	def __init__(self):
 		self._stop = False
+
 		return
 
 	# default function to run the server module
@@ -62,10 +63,17 @@ class Generic_module(threading.Thread):
 		return
 
 	def get_module_name(self):
+
 		return self.module_name
 
 	def get_module_configname(self):
+
 		return self.module_configname
 
 	def get_module_description(self):
+
 		return self.module_description
+
+	def get_intermediate_hop(self, config):
+
+		return ""

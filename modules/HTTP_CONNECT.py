@@ -145,3 +145,11 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 			self.cleanup(server_socket)
 
 		return
+
+	def get_intermediate_hop(self, config):
+		if config.has_option(self.get_module_configname(), "proxyip"):
+			if common.is_ipv4(config.get(self.get_module_configname(), "proxyip")) or common.is_ipv6(config.get(self.get_module_configname(), "proxyip")):
+				remoteserverip = config.get(self.get_module_configname(), "proxyip")
+
+				return remoteserverip
+		return ""
