@@ -193,16 +193,20 @@ Options:
 						common.internal_print("No section in config for module: {0}".format(m.get_module_configname()), -1)
 						continue
 
-					if config.has_option(m.get_module_configname(), "proxyip"):
-						if common.is_ipv4(config.get(m.get_module_configname(), "proxyip")) or common.is_ipv6(config.get(m.get_module_configname(), "proxyip")):
-							remoteserverip = config.get(m.get_module_configname(), "proxyip")
-
-					m.__init_thread__(0, config, client_tunnel, None, self.verbosity)
-					
-					if config.has_option(m.get_module_configname(), "proxyip"):
+					# if the module requires an indirect connection (proxy, 
+					# dns) then we need to amend the routing table
+					intermediate_hop = m.get_intermediate_hop(config)
+					if intermediate_hop:
+						remoteserverip = intermediate_hop
 						interface.set_proxy_route(config.get("Global", "remoteserverip"), remoteserverip)
 
+					# init "thread" for client mode, this will not be run in a thread.
+					m.__init_thread__(0, config, client_tunnel, None, self.verbosity)
+
+					# run in client mode
 					m.client()
+
+					# client finished, closing down tunnel and restoring routes
 					interface.close_tunnel(client_tunnel)
 					interface.restore_routes(remoteserverip)
 				except KeyboardInterrupt:
