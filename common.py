@@ -57,6 +57,9 @@ def check_modules_installed():
 	return allinstalled
 
 
+def get_os_type():
+	return platform.system()
+
 def check_router_settings(config):
 	if platform.system() == "Linux":
 		if open('/proc/sys/net/ipv4/ip_forward','r').read()[0:1] == "0":
