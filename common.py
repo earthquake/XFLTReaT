@@ -11,8 +11,8 @@ import os
 import re
 import platform
 
-DATA_CHANNEL_BYTE 	 = "\x01"
-CONTROL_CHANNEL_BYTE = "\x00"
+DATA_CHANNEL_BYTE 	 = "\x00"
+CONTROL_CHANNEL_BYTE = "\x80"
 
 CONTROL_CHECK   		 = "XFLT>CHECK!"
 CONTROL_CHECK_RESULT 	 = "XFLT>CHECK_RESULT"
@@ -130,6 +130,12 @@ def config_sanity_check(config, serverorclient):
 			return False
 
 	return True
+
+def is_control_channel(control_character):
+	if (ord(control_character) & 0x80) == ord(CONTROL_CHANNEL_BYTE):
+		return True
+	else:
+		return False
 
 def check_gen():
 	number1 = random.randint(0, 4294967295)

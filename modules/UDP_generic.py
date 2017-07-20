@@ -140,7 +140,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 							self.authenticated = False
 							c = common.lookup_client_pub(self.clients, addr)
 
-						if message[0:len(common.CONTROL_CHANNEL_BYTE)] == common.CONTROL_CHANNEL_BYTE:
+						if common.is_control_channel(message[0:1]):
 							if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], (addr)):
 								continue
 							else:

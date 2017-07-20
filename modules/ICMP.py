@@ -131,6 +131,7 @@ class ICMP(Stateless_module.Stateless_module):
 			addr)
 
 	def recv(self):
+		# self.transform is missing, TODO
 		message, addr = self.comms_socket.recvfrom(1508)
 
 		identifier = struct.unpack("<H", message[24:26])[0]
@@ -269,7 +270,7 @@ class ICMP(Stateless_module.Stateless_module):
 									self.do_dummy_packet(self.ICMP_identifier,
 										self.ICMP_sequence)
 
-						if message[0:len(common.CONTROL_CHANNEL_BYTE)] == common.CONTROL_CHANNEL_BYTE:
+						if common.is_control_channel(message[0:1]):
 							if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], (addr, identifier, sequence, 0)):
 								continue
 							else:

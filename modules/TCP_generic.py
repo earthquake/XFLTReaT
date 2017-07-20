@@ -158,7 +158,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 						if len(message) == 0:
 							continue
 
-						if message[0:1] == common.CONTROL_CHANNEL_BYTE:
+						if common.is_control_channel(message[0:1]):
 							if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], None):
 								continue
 							else:
