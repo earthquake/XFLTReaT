@@ -21,6 +21,7 @@ CONTROL_AUTH_OK 		 = "XFLT>AUTH_OK"
 CONTROL_AUTH_NOTOK 		 = "XFLT>AUTH_NOTOK"
 CONTROL_LOGOFF 			 = "XFLT>LOGOFF!"
 CONTROL_DUMMY_PACKET	 = "XFLT>DUMMY_PACKET"
+CONTROL_RESEND_PACKET	 = "XFLT>RESEND"
 
 # severity levels:
 # 	0	always
@@ -58,6 +59,7 @@ def check_modules_installed():
 
 
 def get_os_type():
+
 	return platform.system()
 
 def check_router_settings(config):
@@ -132,6 +134,8 @@ def config_sanity_check(config, serverorclient):
 	return True
 
 def is_control_channel(control_character):
+	if control_character == None:
+		return False
 	if (ord(control_character) & 0x80) == ord(CONTROL_CHANNEL_BYTE):
 		return True
 	else:

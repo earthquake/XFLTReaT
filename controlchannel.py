@@ -85,3 +85,9 @@ class ControlChannel():
 		common.internal_print("Dummy packet arrived as requested", 0, module.verbosity, common.DEBUG)
 
 		return module.cmh_struct[cm][4]
+
+	def cmh_resend_packet(self, module, message, additional_data, cm):
+		module.parse_missing_packets(message)
+		common.internal_print("Resend packet arrived, lossy channel?!", 0, module.verbosity, common.DEBUG)
+
+		return module.cmh_struct[cm][4]
