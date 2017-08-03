@@ -31,6 +31,7 @@ class Interface():
 
 	orig_default_gw = None
 
+	# allocating tunnel, clonde device and name it
 	def tun_alloc(self, dev, flags):
 		try:
 			tun = os.open(Interface.CLONEDEV, os.O_RDWR|os.O_NONBLOCK, 0)
@@ -43,6 +44,7 @@ class Interface():
 		
 		return tun
 
+	# setting MTU on the interface
 	def set_mtu(self, dev, mtu):
 		s = socket.socket(type=socket.SOCK_DGRAM)
 		ifr = struct.pack('<16sH', dev, mtu) + '\x00'*14
@@ -54,6 +56,7 @@ class Interface():
 
 		return
 
+	# setting IP address + netmask on the interface
 	def set_ip_address(self, dev, ip, netmask):
 		idx = self.ip.link_lookup(ifname=dev)[0]
 		self.ip.addr('add', index=idx, address=ip, mask=int(netmask))
@@ -61,6 +64,7 @@ class Interface():
 
 		return
 
+	# closing tunnel file descriptor
 	def close_tunnel(self, tun):
 		try:
 			os.close(tun)
@@ -69,12 +73,17 @@ class Interface():
 
 		return
 
+	# automatic routing set up.
+	# check for multiple default routes, if there are then print error message
+	# - save default route address
+	# - delete default route
+	# - add default route, route all packets into the XFLTReaT interface
+	# - last route: server IP address routed over the original default route
 	def set_default_route(self, serverip, ip):
-		'''
-		TODO
-	 	awfully choose the first of the default routes and don't care 
-	 	about the rest. This could lead to serious problems.
-	 	'''
+		#TODO tunnel thru a tunnel
+	 	if len(self.ip.get_default_routes()) > 1:
+			common.internal_print("More than one default route. This should be reviewed before executing.", -1)
+			sys.exit(-1)
 	 	for attrs in self.ip.get_default_routes()[0]['attrs']:
 	 		if attrs[0] == "RTA_GATEWAY":
 				self.orig_default_gw = attrs[1]
@@ -84,11 +93,18 @@ class Interface():
 		
 		return
 
-	def set_proxy_route(self, serverip, proxyip):
-		common.internal_print("Changing route table for proxy")
+	# setting up intermediate route
+	# when the module needs an intermediate hop (DNS server, Proxy server)
+	# then all encapsulated packet should be sent to the intermediate server
+	# instead of the XFLTReaT server
+	def set_intermediate_route(self, serverip, proxyip):
+		common.internal_print("Changing route table for intermediate hop")
 		self.ip.route('delete', gateway=self.orig_default_gw, dst=serverip, mask=32)
 		self.ip.route('add', gateway=self.orig_default_gw, dst=proxyip, mask=32)
 
+		return
+
+	# restoring default route
 	def restore_routes(self, serverip):
 		common.internal_print("Restoring default route")
 		self.ip.route('delete', gateway=self.orig_default_gw, dst=serverip, mask=32)

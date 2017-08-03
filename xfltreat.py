@@ -19,6 +19,7 @@ from packetselector import PacketSelector
 
 class XFLTReaT:
 
+	# print usage when needed
 	def usage(self):
 		print """[*] Usage: python xfltreat [options]:
 Options:
@@ -32,6 +33,7 @@ Options:
 
   		return
 
+  	# nicest banner ever.
   	def banner(self):
   		print """
 ,--.   ,--.,------.,--.,--------.,------.                ,--------. 
@@ -39,6 +41,7 @@ Options:
   .'    \  |  `--, |  |   |  |   |  '--'.'| .-. :' ,-.  |   |  |    
  /  .'.  \ |  |`   |  '--.|  |   |  |\  \ \   --.\ '-'  |   |  |    
 '--'   '--'`--'    `-----'`--'   `--' '--' `----' `--`--'   `--'    
+Balazs Bucsay [[@xoreipeip]]
 """
 		return
 
@@ -198,7 +201,7 @@ Options:
 					intermediate_hop = m.get_intermediate_hop(config)
 					if intermediate_hop:
 						remoteserverip = intermediate_hop
-						interface.set_proxy_route(config.get("Global", "remoteserverip"), remoteserverip)
+						interface.set_intermediate_route(config.get("Global", "remoteserverip"), remoteserverip)
 
 					# init "thread" for client mode, this will not be run in a thread.
 					m.__init_thread__(0, config, client_tunnel, None, self.verbosity)
