@@ -127,12 +127,6 @@ class Stateful_thread(threading.Thread):
 
 		return
 
-	# PLACEHOLDER: handling control messages
-	# What comes here: All control messages have to be handled here
-	def handle_control_messages(self, message, serverorclient, additional_data):
-
-		return
-
 	# PLACEHOLDER: communication function
 	# What comes here: this is the tricky part, where everything is handled 
 	# that matters.
