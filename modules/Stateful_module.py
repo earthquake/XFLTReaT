@@ -19,10 +19,12 @@ import controlchannel
 import client
 import common
 import threading
+import checks
 
 class Stateful_thread(threading.Thread):
 	def __init__(self):
 		super(Stateful_thread, self).__init__()
+		self.checks = checks.Checks()
 		self.controlchannel = controlchannel.ControlChannel()
 
 		# control message handlers

@@ -48,7 +48,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 	# check request: generating a challenge and sending it to the server
 	# in case the answer is that is expected, the targer is a valid server
 	def do_check(self):
-		message, self.check_result = common.check_gen()
+		message, self.check_result = self.checks.check_default_generate_challange()
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, None)
 
 		return
@@ -56,8 +56,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 	# basic authentication support. mostly placeholder for a proper 
 	# authentication. Time has not come yet.
 	def do_auth(self):
-		message = common.auth_first_step(
-			self.config.get("Global", "clientip"), self.comms_socket)
+		message = common.auth_first_step(self.config.get("Global", "clientip"), self.comms_socket)
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH+message, None)
 
 		return
