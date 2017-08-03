@@ -50,7 +50,7 @@ class Generic_module(threading.Thread):
 
 		return
 
-	def client(self):
+	def connect(self):
 
 		return
 

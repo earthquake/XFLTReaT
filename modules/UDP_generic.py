@@ -208,7 +208,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 
 		return
 
-	def client(self):
+	def connect(self):
 		if not self.sanity_check():
 			return 
 		try:

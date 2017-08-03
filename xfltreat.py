@@ -204,7 +204,7 @@ Options:
 					m.__init_thread__(0, config, client_tunnel, None, self.verbosity)
 
 					# run in client mode
-					m.client()
+					m.connect()
 
 					# client finished, closing down tunnel and restoring routes
 					interface.close_tunnel(client_tunnel)

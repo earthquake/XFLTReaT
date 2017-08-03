@@ -616,7 +616,7 @@ class DNS_32(UDP_generic.UDP_generic):
 
 		return
 
-	def client(self):
+	def connect(self):
 		if not self.sanity_check():
 			return 
 		try:

@@ -321,7 +321,7 @@ class ICMP(Stateless_module.Stateless_module):
 
 		return
 
-	def client(self):
+	def connect(self):
 		try:
 			common.internal_print("Starting client: {0}".format(self.get_module_name()))
 

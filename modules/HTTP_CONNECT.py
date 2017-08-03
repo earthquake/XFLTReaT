@@ -83,7 +83,7 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 
 		return True
 
-	def client(self):
+	def connect(self):
 		try:
 			if not self.sanity_check():
 				return

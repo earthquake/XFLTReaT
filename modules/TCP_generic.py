@@ -270,7 +270,7 @@ class TCP_generic(Stateful_module.Stateful_module):
 
 		return
 
-	def client(self):
+	def connect(self):
 		try:
 			if not self.sanity_check():
 				return 

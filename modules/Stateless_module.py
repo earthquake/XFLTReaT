@@ -134,7 +134,7 @@ class Stateless_module(Generic_module):
 
 	# PLACEHOLDER: client part of the module
 	# What comes here: setup, connect, cleanup
-	def client(self):
+	def connect(self):
 
 		return
 
