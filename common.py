@@ -141,16 +141,6 @@ def is_control_channel(control_character):
 	else:
 		return False
 
-def check_gen():
-	number1 = random.randint(0, 4294967295)
-	number2 = random.randint(0, 4294967295)
-	number3 = number1 ^ number2
-
-	return (struct.pack(">II", number1, number2), struct.pack(">I", number3))
-
-def check_calc(leftover):
-	numbers = struct.unpack(">II", leftover)
-	return struct.pack(">I", numbers[0] ^ numbers[1])
 
 def auth_first_step(clientip, sd):
 	client_public_source_ip = sd.getsockname()[0]
