@@ -23,8 +23,12 @@ class Authentication_module():
 			return False
 
 		self.key = config.get("Authentication", "key")
+		if not len(self.key):
+			common.internal_print("The 'key' option's value in the Authentication section is missing", -1)
+
+			return False
 		if len(self.key) < 10:
-			common.internal_print("The 'key' option's value is a bit short, it is recommended to make it random and longer")
+			common.internal_print("The 'key' option's value in the Authentication section is a bit short, it is recommended to make it longer", -1)
 
 		return True
 
