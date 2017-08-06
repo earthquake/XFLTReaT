@@ -300,7 +300,7 @@ class ICMP(Stateless_module.Stateless_module):
 	def serve(self):
 		server_socket = None
 		try:
-			common.internal_print("Starting server: {0} on {1}".format(self.get_module_name(), self.config.get("Global", "serverbind")))
+			common.internal_print("Starting module: {0} on {1}".format(self.get_module_name(), self.config.get("Global", "serverbind")))
 		
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
 			whereto = (self.config.get("Global", "serverbind"), self.ICMP_fake_serverport)
