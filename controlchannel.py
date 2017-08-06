@@ -48,7 +48,7 @@ class ControlChannel():
 
 
 	def cmh_auth(self, module, message, additional_data, cm):
-		if common.authenticate(message[len(common.CONTROL_AUTH):]):
+		if module.auth_module.check_details(message[len(common.CONTROL_AUTH):]):
 			module.setup_authenticated_client(message[len(common.CONTROL_AUTH):], additional_data)
 
 			common.internal_print("Client authenticated", 1, module.verbosity, common.DEBUG)

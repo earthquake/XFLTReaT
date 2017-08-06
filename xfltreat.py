@@ -16,6 +16,7 @@ from modules.Stateful_module import Stateful_module
 from modules.Stateless_module import Stateless_module
 from interface import Interface
 from packetselector import PacketSelector
+import authentication
 
 class XFLTReaT:
 
@@ -45,7 +46,7 @@ Balazs Bucsay [[@xoreipeip]]
 """
 		return
 
-	def __init__(self, argv):
+	def __init__(self):
 		self.verbosity = 0
 		self.configfile = "xfltreat.conf"
 		self.servermode = 0
@@ -58,6 +59,9 @@ Balazs Bucsay [[@xoreipeip]]
 		self.forbidden_modules = ["Generic_module", "Stateful_module", "Stateless_module"]
 		self.forbidden_modules_instance = [Generic_module, Stateful_module, Stateless_module]
 
+		self.authentication = authentication.Authentication()
+
+	def run(self, argv):
 		self.banner()
 		try:
 			opts, args = getopt.getopt(argv, self.short, self.long)
@@ -106,7 +110,15 @@ Balazs Bucsay [[@xoreipeip]]
 			common.internal_print("Invalid or malformed configuration file specified", -1)
 			exit(-1)
 
+		# sanity check on configuration, exit on error
 		if not common.config_sanity_check(config, (self.servermode or (not self.clientmode and not self.checkmode))):
+			exit(-1)
+
+		# load authentication module
+		auth_module = self.authentication.load_auth_module(config)
+
+		#sanity check for the auth module
+		if not auth_module.sanity_check(config):
 			exit(-1)
 
 		# Check system config for routing. If the OS was not set up for IP 
@@ -185,7 +197,7 @@ Balazs Bucsay [[@xoreipeip]]
 		for m in modules_enabled:
 			if (self.servermode or (not self.clientmode and not self.checkmode)):
 				module_thread_num = module_thread_num + 1
-				m.__init_thread__(module_thread_num, config, server_tunnel, ps, self.verbosity)
+				m.__init_thread__(module_thread_num, config, server_tunnel, ps, auth_module, self.verbosity)
 				m.start()
 				module_threads.append(m)
 
@@ -204,7 +216,7 @@ Balazs Bucsay [[@xoreipeip]]
 						interface.set_intermediate_route(config.get("Global", "remoteserverip"), remoteserverip)
 
 					# init "thread" for client mode, this will not be run in a thread.
-					m.__init_thread__(0, config, client_tunnel, None, self.verbosity)
+					m.__init_thread__(0, config, client_tunnel, None, auth_module, self.verbosity)
 
 					# run in client mode
 					m.connect()
@@ -229,7 +241,7 @@ Balazs Bucsay [[@xoreipeip]]
 					raise
 
 			if self.checkmode:
-				m.__init_thread__(0, config, None, None, self.verbosity)
+				m.__init_thread__(0, config, None, None, None, self.verbosity)
 				try:
 					m.check()
 				except KeyboardInterrupt:
@@ -252,6 +264,7 @@ Balazs Bucsay [[@xoreipeip]]
 
 # main function
 if __name__ == "__main__":
-		xfltreat = XFLTReaT(sys.argv[1:])
+		xfltreat = XFLTReaT()
+		xfltreat.run(sys.argv[1:])
 
 

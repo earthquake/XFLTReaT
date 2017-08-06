@@ -18,12 +18,13 @@ class Generic_module(threading.Thread):
 	This saves us some bytes and fulfill the joy of oop. Wut?
 	"""
 
-	def __init_thread__(self, threadID, config, tunnel, packetselector, verbosity):
+	def __init_thread__(self, threadID, config, tunnel, packetselector, auth_module, verbosity):
 		threading.Thread.__init__(self)
 		self.threadID = threadID
 		self.config = config
 		self.tunnel = tunnel
 		self.packetselector = packetselector
+		self.auth_module = auth_module
 		self.verbosity = verbosity
 		self._stop = False
 

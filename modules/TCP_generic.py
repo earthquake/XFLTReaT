@@ -17,7 +17,7 @@ import client
 import common
 
 class TCP_generic_thread(Stateful_module.Stateful_thread):
-	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, verbosity, config, module_name):
+	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name):
 		super(TCP_generic_thread, self).__init__()
 		threading.Thread.__init__(self)
 		self._stop = False
@@ -27,6 +27,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 		self.packetselector = packetselector
 		self.comms_socket = comms_socket
 		self.client_addr = client_addr
+		self.auth_module = auth_module
 		self.verbosity = verbosity
 		self.serverorclient = serverorclient
 		self.config = config
@@ -56,7 +57,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 	# basic authentication support. mostly placeholder for a proper 
 	# authentication. Time has not come yet.
 	def do_auth(self):
-		message = common.auth_first_step(self.config.get("Global", "clientip"), self.comms_socket)
+		message = self.auth_module.send_details(self.config.get("Global", "clientip"))
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH+message, None)
 
 		return
@@ -254,7 +255,7 @@ class TCP_generic(Stateful_module.Stateful_module):
 				common.internal_print(("Client connected: {0}".format(client_addr)), 0, self.verbosity, common.DEBUG)
 
 				threadsnum = threadsnum + 1
-				thread = TCP_generic_thread(threadsnum, 1, self.tunnel, self.packetselector, client_socket, client_addr, self.verbosity, self.config, self.get_module_name())
+				thread = TCP_generic_thread(threadsnum, 1, self.tunnel, self.packetselector, client_socket, client_addr, self.auth_module, self.verbosity, self.config, self.get_module_name())
 				thread.start()
 				self.threads.append(thread)
 
@@ -281,7 +282,7 @@ class TCP_generic(Stateful_module.Stateful_module):
 			server_socket.settimeout(3)
 			server_socket.connect((self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport"))))
 
-			client_fake_thread = TCP_generic_thread(0, 0, self.tunnel, None, server_socket, None, self.verbosity, self.config, self.get_module_name())
+			client_fake_thread = TCP_generic_thread(0, 0, self.tunnel, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
 			client_fake_thread.do_auth()
 			client_fake_thread.communication(False)
 
@@ -308,7 +309,7 @@ class TCP_generic(Stateful_module.Stateful_module):
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			server_socket.settimeout(3)
 			server_socket.connect((self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport"))))
-			client_fake_thread = TCP_generic_thread(0, 0, None, None, server_socket, None, self.verbosity, self.config, self.get_module_name())
+			client_fake_thread = TCP_generic_thread(0, 0, None, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
 			client_fake_thread.do_check()
 			client_fake_thread.communication(True)
 

@@ -42,7 +42,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 		return
 
 	def do_auth(self):
-		message = common.auth_first_step(self.config.get("Global", "clientip"), self.comms_socket)
+		message = self.auth_module.send_details(self.config.get("Global", "clientip"))
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH+message, (self.server_tuple))
 
 		return

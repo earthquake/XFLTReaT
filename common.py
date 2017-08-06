@@ -142,18 +142,6 @@ def is_control_channel(control_character):
 		return False
 
 
-def auth_first_step(clientip, sd):
-	client_public_source_ip = sd.getsockname()[0]
-	client_public_source_port = sd.getsockname()[1]
-	client_private_ip = clientip
-
-	return socket.inet_aton(client_private_ip)+socket.inet_aton(client_public_source_ip)+struct.pack(">H", client_public_source_port)
-
-def authenticate(msg):
-	#do real auth
-	#private IP come from the client, is this secure?
-	return True
-
 def init_client_stateful(msg, addr, client, packetselector):
 	## TODO error handling
 	client_private_ip = msg[0:4]
