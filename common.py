@@ -193,7 +193,7 @@ def delete_client_stateless(clients, client):
 	client.get_pipe_r_fd().close()
 	client.get_pipe_w_fd().close()
 
-def lookup_client_priv(msg, clients):
+def lookup_client_priv(clients, msg):
 	client_private_ip = msg[16:20]
 
 	for c in clients:
@@ -207,6 +207,14 @@ def lookup_client_pub(clients, addr):
 
 	for c in clients:
 		if (c.get_public_ip_addr() == client_public_ip) and (c.get_public_src_port() == addr[1]):
+			return c
+
+	return None
+
+def lookup_client_userid(clients, userid):
+
+	for c in clients:
+		if c.get_userid() == userid:
 			return c
 
 	return None
