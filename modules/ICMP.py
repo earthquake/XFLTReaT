@@ -176,7 +176,7 @@ class ICMP(Stateless_module.Stateless_module):
 						if self.authenticated:
 							self.ICMP_sequence = (self.ICMP_sequence + 1) % 65536
 							self.do_dummy_packet(self.ICMP_identifier, self.ICMP_sequence)
-							common.internal_print("DEBUG: Keep alive sent", 0, self.verbosity, common.DEBUG)
+							common.internal_print("Keep alive sent", 0, self.verbosity, common.DEBUG)
 					continue
 
 				for s in readable:
@@ -192,7 +192,7 @@ class ICMP(Stateless_module.Stateless_module):
 							readytogo = message[0:packetlen]
 							message = message[packetlen:]
 							if self.serverorclient:
-								c = common.lookup_client_priv(readytogo, self.clients)
+								c = common.lookup_client_priv(self.clients, readytogo)
 
 								if c:
 									identifier = c.get_ICMP_sent_identifier()
