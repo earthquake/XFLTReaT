@@ -107,7 +107,7 @@ class ICMP(Stateless_module.Stateless_module):
 
 		return
 
-	def send(self, type, message, additional_data):
+	def send(self, channel_type, message, additional_data):
 		addr = additional_data[0]
 		identifier = additional_data[1]
 		sequence = additional_data[2]
@@ -118,7 +118,7 @@ class ICMP(Stateless_module.Stateless_module):
 		else:
 			ql = chr(255)
 
-		if type == common.CONTROL_CHANNEL_BYTE:
+		if channel_type == common.CONTROL_CHANNEL_BYTE:
 			transformed_message = self.transform(ql+common.CONTROL_CHANNEL_BYTE+message, 1)
 		else:
 			transformed_message = self.transform(ql+common.DATA_CHANNEL_BYTE+message, 1)

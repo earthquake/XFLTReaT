@@ -106,7 +106,7 @@ class Stateless_module(Generic_module):
 	# What comes here: marking message (control or data), transforming (see
 	# transform()), prepending with length, sending on the appropriate channel
 
-	def send(self, type, message, additional_data):
+	def send(self, channel_type, message, additional_data):
 
 		return
 

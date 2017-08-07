@@ -69,8 +69,8 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 
 		return
 
-	def send(self, type, message, additional_data):
-		if type == common.CONTROL_CHANNEL_BYTE:
+	def send(self, channel_type, message, additional_data):
+		if channel_type == common.CONTROL_CHANNEL_BYTE:
 			transformed_message = self.transform(common.CONTROL_CHANNEL_BYTE+message, 1)
 		else:
 			transformed_message = self.transform(common.DATA_CHANNEL_BYTE+message, 1)

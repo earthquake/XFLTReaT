@@ -52,9 +52,9 @@ class UDP_generic(Stateless_module.Stateless_module):
 
 		return
 
-	def send(self, type, message, additional_data):
+	def send(self, channel_type, message, additional_data):
 		addr = additional_data
-		if type == common.CONTROL_CHANNEL_BYTE:
+		if channel_type == common.CONTROL_CHANNEL_BYTE:
 			transformed_message = self.transform(common.CONTROL_CHANNEL_BYTE+message, 1)
 		else:
 			transformed_message = self.transform(common.DATA_CHANNEL_BYTE+message, 1)
