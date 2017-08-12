@@ -43,7 +43,7 @@ class Stateful_thread(threading.Thread):
 
 		return
 
-	def auth_ok_setup(self):
+	def auth_ok_setup(self, additional_data):
 		self.tunnel_r = self.tunnel_w
 		return
 

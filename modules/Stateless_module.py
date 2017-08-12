@@ -44,7 +44,7 @@ class Stateless_module(Generic_module):
 
 		return
 
-	def auth_ok_setup(self):
+	def auth_ok_setup(self, additional_data):
 
 		return
 
