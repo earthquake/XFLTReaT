@@ -352,7 +352,7 @@ class ICMP(Stateless_module.Stateless_module):
 			self.server_tuple = (self.config.get("Global", "remoteserverip"), self.ICMP_fake_serverport)
 			self.comms_socket = server_socket
 			self.serverorclient = 0
-			self.authenticated = True
+			self.authenticated = False
 			self.communication_initialization()
 			self.do_check()
 			self.communication(True)

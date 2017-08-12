@@ -244,7 +244,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 			self.server_tuple = (self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport")))
 			self.comms_socket = server_socket
 			self.serverorclient = 0
-			self.authenticated = True
+			self.authenticated = False
 
 			self.do_check()
 			self.communication(True)
