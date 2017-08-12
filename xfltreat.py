@@ -252,6 +252,7 @@ Balazs Bucsay [[@xoreipeip]]
 			if (self.servermode or (not self.clientmode and not self.checkmode)):
 				ps.stop()
 		else:
+			time.sleep(0.5)
 			try:
 				common.internal_print("Please use CTRL+C to exit...")
 				while True:
