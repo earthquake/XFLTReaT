@@ -62,7 +62,7 @@ class ControlChannel():
 
 
 	def cmh_auth_ok(self, module, message, additional_data, cm):
-		module.auth_ok_setup()
+		module.auth_ok_setup(additional_data)
 		module.authenticated = True
 		common.internal_print("Authentication succeed for: {0}".format(module.module_name), 1)
 
@@ -87,7 +87,7 @@ class ControlChannel():
 		return module.cmh_struct[cm][4]
 
 	def cmh_resend_packet(self, module, message, additional_data, cm):
-		module.parse_missing_packets(message)
+		module.parse_missing_packets(message, additional_data)
 		common.internal_print("Resend packet arrived, lossy channel?!", 0, module.verbosity, common.DEBUG)
 
 		return module.cmh_struct[cm][4]

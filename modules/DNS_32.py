@@ -24,8 +24,9 @@ import encoding
 from support.dns_proto import DNS_common
 from support.dns_proto import DNS_Proto
 from support.dns_proto import DNS_Queue
+from support.dns_proto import DNS_Client
 
-
+#iptables -t mangle -A POSTROUTING -p tcp --tcp-flags SYN,RST SYN -o xfl0 -j TCPMSS --set-mss 112
 class DNS_32(UDP_generic.UDP_generic):
 
 	module_name = "DNS 32"
@@ -37,25 +38,23 @@ class DNS_32(UDP_generic.UDP_generic):
 		super(DNS_32, self).__init__()
 		self.DNS_common = DNS_common()
 		self.DNS_proto = DNS_Proto()
-		self.query_queue = DNS_Queue()
-		self.cache_queue = DNS_Queue()
-		self.to_be_resent_queue = Queue.Queue()
-		self.seems_to_be_lost_queue = DNS_Queue()
-		self.answer_queue = Queue.Queue()
-		self.Encodings = encoding.Encodings()
+		
 		self.zone = []
-		self.DNS_query_timeout = 4
-		self.select_timeout = 2.0
+		self.DNS_query_timeout = 1.0
+		self.select_timeout = 1.0
 		self.lost_expiry = 20
 		self.qpacket_number = 0
-		self.apacket_number = 0
-		self.qfragments = {}
+
 		self.afragments = {}
-		self.qlast_fragments = {}
+		
 		self.alast_fragments = {}
 		self.qMTU = 130 - 3
-		self.aMTU = 353 - 3
 		self.old_packet_number = 0
+		self.next_userid = 0
+		self.userid = 0
+		self.recordtype = "A"
+		self.encoding_class = encoding.Base32()
+		self.encoding_needed = True
 
 		self.cmh_struct  = {
 			# num : [string to look for, function, server(1) or client(0), return on success, return on failure]
@@ -74,47 +73,82 @@ class DNS_32(UDP_generic.UDP_generic):
 
 		return
 
+	def auth_ok_setup(self, additional_data):
+		self.userid = additional_data[1]
+		return
+
+
+	def burn_unanswered_packets(self):
+		for c in self.clients:
+			expired_num = c.get_query_queue().how_many_expired(int(time.time() - self.DNS_query_timeout))
+			while expired_num:
+				(temp, transaction_id, orig_question, addr) = c.get_query_queue().get_an_expired(int(time.time() - self.DNS_query_timeout))
+				expired_num -= 1
+				packet = self.DNS_proto.build_answer(transaction_id, None, orig_question)
+				self.comms_socket.sendto(packet, addr)
+
+		return
+
 	def communication_initialization(self):
 		self.clients = []
+		# add user 0 to non-user comms
+		client_local = DNS_Client()
+		self.clients.append(client_local)
+		client_local.set_userid(0)
+		client_local.set_recordtype("CNAME")
+		client_local.set_encoding_class(encoding.Base32())
 
 		return
 
 	def setup_authenticated_client(self, control_message, additional_data):
 		addr = additional_data[0] # UDP specific
-		client_local = client.Client()
+		client_local = DNS_Client()
 		common.init_client_stateless(control_message, addr, client_local, self.packetselector, self.clients)
 		self.clients.append(client_local)
 		self.packetselector.add_client(client_local)
 		if client_local.get_pipe_r() not in self.rlist:
 			self.rlist.append(client_local.get_pipe_r())
+
+		self.next_userid = (self.next_userid + 1) % self.DNS_common.get_userid_length()
+		additional_data = (additional_data[0], self.next_userid, client_local)
+		client_local.set_userid(self.next_userid)
+		client_local.set_recordtype("CNAME")
+		client_local.set_encoding_class(encoding.Base32())
+		client_local.set_encoding_needed(True)
+
+		# moving query to new client
+		client_local.get_query_queue().put(common.lookup_client_userid(self.clients, 0).get_query_queue().get())
+
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH_OK, additional_data)
 
 		return
 
 	def remove_authenticated_client(self, additional_data):
 		addr = additional_data[0] # UDP specific
-		c = common.lookup_client_pub(self.clients, addr)
-		if c:
-			self.packetselector.delete_client(c)
-			self.rlist.remove(c.get_pipe_r())
-			common.delete_client_stateless(self.clients, c)
+		userid = additional_data[1] # UDP specific
+		if userid:
+			c = common.lookup_client_userid(self.clients, userid)
+			if c:
+				self.packetselector.delete_client(c)
+				self.rlist.remove(c.get_pipe_r())
+				common.delete_client_stateless(self.clients, c)
 
 		return
 
 	def do_check(self):
 		message, self.check_result = self.checks.check_default_generate_challange()
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, self.server_tuple)
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, (self.server_tuple, 0, None))
 
 		return
 
 	def do_auth(self):
 		message = self.auth_module.send_details(self.config.get("Global", "clientip"))
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH+message, self.server_tuple)
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH+message, (self.server_tuple, 0, None))
 
 		return
 
 	def do_logoff(self):
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, self.server_tuple)
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, (self.server_tuple, self.userid, None))
 
 		return
 
@@ -126,293 +160,234 @@ class DNS_32(UDP_generic.UDP_generic):
 			random_content += chrset[rpos]
 
 		#random_content = 
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_DUMMY_PACKET + random_content, self.server_tuple)
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_DUMMY_PACKET + random_content, (self.server_tuple, self.userid, None))
 
 		return
 
-	def request_resend(self):
-		# what is bigger than MTU? should check for size
-		# encode like this: xPPP PPP OOOO
-		# x if fragments number is 1
-		# PPP PPPP 7 bit packet number
-		# OOOO optional if x > 1 then fragment number
-		# shift, concat values
-		if self.seems_to_be_lost_queue.length():
-			message = ""
-			for i in range(0,self.seems_to_be_lost_queue.length()):
-				p = self.seems_to_be_lost_queue.get()
-				message += chr(p[0])+chr(p[1])
+	def send(self, channel_type, message, additional_data):
+		addr = additional_data[0]
+		userid = additional_data[1]
+		current_client = additional_data[2]
 
-			print "request sent!"
-			self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_RESEND_PACKET + message, self.server_tuple)
-
-			return True
-
-		return False
-
-	def parse_missing_packets(self, message):
-		# rewrite as in request_resend
-		message = message[len(common.CONTROL_RESEND_PACKET):]
-		while len(message):
-			packet_number = ord(message[0:1])
-			fragment_number = ord(message[1:2])
-			message = message[2:]
-			print (packet_number, fragment_number)
-			self.to_be_resent_queue.put((packet_number, fragment_number))
-
-		self.send(None, None, None)
-
-	def send(self, type_, message, additional_data):
-		addr = additional_data
-		#queue_length = additional_data[1]
 		fragment = ""
 
 		ql = "\x00" # queue length required bytes
 		data = ""
 
-		'''
-		if type == common.CONTROL_CHANNEL_BYTE:
-			transformed_message = self.transform(ql+common.CONTROL_CHANNEL_BYTE+message, 1)
-		else:
-			transformed_message = self.transform(ql+common.DATA_CHANNEL_BYTE+message, 1)
-		'''
-		if type_ == common.CONTROL_CHANNEL_BYTE:
+		if channel_type == common.CONTROL_CHANNEL_BYTE:
 			channel_byte = common.CONTROL_CHANNEL_BYTE
 		else:
 			channel_byte = common.DATA_CHANNEL_BYTE
 
 		i = 0
-		if self.serverorclient:
-			self.query_queue.remove_expired(int(time.time()) - self.DNS_query_timeout)
-			self.cache_queue.remove_expired(int(time.time()) - self.lost_expiry)
-			if (type_ != None) and (message != None):
-				readytogo = message
-				while len(readytogo) > self.aMTU:
-					fragment = self.DNS_common.create_fragment_header(ord(channel_byte), 0, self.apacket_number, i, 0)+readytogo[0:self.aMTU]
-					readytogo = readytogo[self.aMTU:]
-					self.answer_queue.put(fragment)
-					self.cache_queue.put((int(time.time()), self.apacket_number, i, fragment))
-					i += 1
-				
-				fragment = self.DNS_common.create_fragment_header(ord(channel_byte), 0, self.apacket_number, i, 1)+readytogo[0:]
-				self.answer_queue.put(fragment)
-				self.cache_queue.put((int(time.time()), self.apacket_number, i, fragment))
-				self.apacket_number = (self.apacket_number + 1) % 0x7F
 
-			#print "answer queue length: %d" % self.answer_queue.qsize()
-			#aq_l = self.answer_queue.qsize()
-			print "TBRQ: %d" % self.to_be_resent_queue.qsize()
-			aq_l = self.answer_queue.qsize() + self.to_be_resent_queue.qsize()
-			qq_l = self.query_queue.length()
-			if (qq_l <= 1) and not common.is_control_channel(type_):
+		if self.serverorclient:
+			# server side
+			self.burn_unanswered_packets()
+
+			# creating packet and saving to the queue
+			fragment = self.DNS_common.create_fragment_header(ord(channel_byte), current_client.get_apacket_number(), i, 1)+message
+			current_client.get_answer_queue().put(fragment)
+			current_client.set_apacket_number((current_client.get_apacket_number() + 1) % 0x3FF)
+
+			RRtype = self.DNS_proto.reverse_RR_type(current_client.get_recordtype())
+			
+			#check answer and query queues, send as many answers as many queries-1 we had
+			aq_l = current_client.get_answer_queue().qsize()
+			qq_l = current_client.get_query_queue().qsize()
+			if (qq_l <= 1) and not common.is_control_channel(channel_type):
+				# not enough queries, sorry
+				# one should be held back, for requesting more queries.
 				return 0
 			
-			#print "(%d > 2) and (%d > 1)" % (qq_l, aq_l)
 			while (qq_l > 2) and (aq_l > 1):
-				#print "2222"
-				if self.to_be_resent_queue.qsize():
-					(pn, fn) = self.to_be_resent_queue.get()
-					message = self.cache_queue.get_specific(pn, fn)
-				else:
-					message = self.answer_queue.get()
+				message = current_client.get_answer_queue().get()
 				aq_l -= 1
 				qq_l -= 1
 
-				transformed_message = self.transform(ql+message, 1)
-				(temp, transaction_id, orig_question, addr) = self.query_queue.get()
-				packet = self.DNS_proto.build_answer(transaction_id, ["NULL", transformed_message], orig_question)
+				if current_client.get_encoding_needed():
+					pre_message = current_client.get_encoding_class().encode(ql+message)
+				else:
+					pre_message = ql+message
+
+				transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+self.transform(pre_message, 1))
+
+				(temp, transaction_id, orig_question, addr) = current_client.get_query_queue().get()
+				packet = self.DNS_proto.build_answer(transaction_id, [current_client.get_recordtype(), "", transformed_message], orig_question)
 				self.comms_socket.sendto(packet, addr)
-				#common.internal_print("DNS packet sent: {0}".format(len(transformed_message)), 0, self.verbosity, common.DEBUG)
-				pn = self.DNS_common.get_packet_number_from_header(message[1:3])
-				fn = self.DNS_common.get_fragment_number_from_header(message[1:3])
-				common.internal_print("DNS packet sent: {0} - packet number: {1} / fragment: {2}".format(len(message), pn, fn), 0, self.verbosity, common.DEBUG)
 
-			if self.to_be_resent_queue.qsize():
-				(pn, fn) = self.to_be_resent_queue.get()
-				message = self.cache_queue.get_specific(pn, fn)
-				print "sending"
-				print (pn, fn)
-			else:
-				message = self.answer_queue.get()
+				pn = self.DNS_common.get_packet_number_from_header(transformed_message[1:3])
+				fn = self.DNS_common.get_fragment_number_from_header(transformed_message[1:3])
+				common.internal_print("\033[92mDNS packet sent!: {0} - packet number: {1} / fragment: {2}\033[39m".format(len(message), pn, fn), 0, self.verbosity, common.DEBUG)
 
-			aq_l = self.answer_queue.qsize() + self.to_be_resent_queue.qsize()
-			#print "3333"
+			# last message to send
+			message = current_client.get_answer_queue().get()
+			aq_l = current_client.get_answer_queue().qsize()
+
+			pn = self.DNS_common.get_packet_number_from_header(message[0:2])
+			fn = self.DNS_common.get_fragment_number_from_header(message[0:2])
 
 			if aq_l < 256:
 				ql = chr(aq_l)
 			else:
 				ql = chr(255)
-			transformed_message = self.transform(ql+message, 1)
-			(temp, transaction_id, orig_question, addr) = self.query_queue.get()
-			packet = self.DNS_proto.build_answer(transaction_id, ["NULL", transformed_message], orig_question)
 
-			pn = self.DNS_common.get_packet_number_from_header(message[1:3])
-			fn = self.DNS_common.get_fragment_number_from_header(message[1:3])
-			common.internal_print("DNS packet sent: {0} - packet number: {1} / fragment: {2}".format(len(message), pn, fn), 0, self.verbosity, common.DEBUG)
+			if current_client.get_encoding_needed():
+				pre_message = current_client.get_encoding_class().encode(ql+message)
+			else:
+				pre_message = ql+message
+
+			transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+self.transform(pre_message, 1))
+			(temp, transaction_id, orig_question, addr) = current_client.get_query_queue().get()
+			packet = self.DNS_proto.build_answer(transaction_id, [current_client.get_recordtype(), "", transformed_message], orig_question)
+
+			common.internal_print("\033[92mDNS packet sent?: {0} - packet number: {1} / fragment: {2}\033[39m\033[39m".format(len(message), pn, fn), 0, self.verbosity, common.DEBUG)
 		else:
-			RRtype = self.DNS_proto.reverse_RR_type_num("NULL")
+			# client side
+			RRtype = self.DNS_proto.reverse_RR_type_num(self.recordtype)
 			
-
-			#print "sent s= %r" % message
 			while len(message) > self.qMTU:
-				#print "range(0, int(math.floor((len(message)-1)/float(self.qMTU))) = %d" %  int(math.floor((len(message)-1)/float(self.qMTU)))
-				fragment = ql+self.DNS_common.create_fragment_header(ord(channel_byte), 0, self.qpacket_number, i, 0)+message[0:self.qMTU]
+				fragment = ql+self.DNS_common.create_fragment_header(ord(channel_byte), self.qpacket_number, i, 0)+message[0:self.qMTU]
 				message = message[self.qMTU:]
-				efragment = self.Encodings.base64(fragment, True).replace("=", "-")
+				efragment = self.DNS_common.get_character_from_userid(userid)+self.encoding_class.encode(fragment)
 				data = ""
 				for j in range(0,int(math.ceil(float(len(efragment))/63))):
 					data += efragment[j*63:(j+1)*63]+"."
 				packet = self.DNS_proto.build_query(int(random.random() * 65535), data, self.hostname, RRtype)
-				common.internal_print("DNS packet sent_: {0} - packet number: {1} / fragment: {2}".format(len(fragment), self.qpacket_number, i), 0, self.verbosity, common.DEBUG)
+				common.internal_print("\033[92mDNS packet sent_: {0} - packet number: {1} / fragment: {2}\033[39m".format(len(fragment), self.qpacket_number, i), 0, self.verbosity, common.DEBUG)
 				self.comms_socket.sendto(packet, addr)
 				i += 1
 
-			fragment = ql+self.DNS_common.create_fragment_header(ord(channel_byte), 0, self.qpacket_number, i, 1)+message[0:self.qMTU]
-			efragment = self.Encodings.base64(fragment, True).replace("=", "-")
+			fragment = ql+self.DNS_common.create_fragment_header(ord(channel_byte), self.qpacket_number, i, 1)+message[0:self.qMTU]
+			efragment = self.DNS_common.get_character_from_userid(userid)+self.encoding_class.encode(fragment)
 			data = ""
 			for h in range(0,int(math.ceil(float(len(efragment))/63))):
 				data += efragment[h*63:(h+1)*63]+"."
 
 			packet = self.DNS_proto.build_query(int(random.random() * 65535), data, self.hostname, RRtype)
-			common.internal_print("DNS packet sent: {0} - packet number: {1} / fragment: {2}".format(len(fragment), self.qpacket_number, i), 0, self.verbosity, common.DEBUG)		
-			self.qpacket_number = (self.qpacket_number + 1) % 0x7F
+			common.internal_print("\033[92mDNS packet sent: {0} - packet number: {1} / fragment: {2}\033[39m".format(len(fragment), self.qpacket_number, i), 0, self.verbosity, common.DEBUG)		
+			self.qpacket_number = (self.qpacket_number + 1) % 0x3FF
 					
 		return self.comms_socket.sendto(packet, addr)
 
 	def recv(self):
 		raw_message = ""
 		raw_message, addr = self.comms_socket.recvfrom(4096, socket.MSG_PEEK) # WUT TODO
-		#print "%r" % raw_message
 
 		if len(raw_message) == 0:
+			# this cannot really happen, if it does we just ignore it.
 			if self.serverorclient:
 				common.internal_print("WTF? Client lost. Closing down thread.", -1)
 			else:
 				common.internal_print("WTF? Server lost. Closing down.", -1)
 
-			return ("", None, 0)
+			return ("", None, 0, 0)
 
+		# basic check to see if it looks like a proper DNS message
 		if not self.DNS_proto.is_valid_dns(raw_message, self.hostname):
 			raw_message2, addr2 = self.comms_socket.recvfrom(len(raw_message))
-			#print "szar : %r" % raw_message 
-			#print "szar2: %r" % raw_message2
-			common.internal_print("Invalid packet received", -1)
+			common.internal_print("Invalid DNS packet received", -1)
 
-			return ("", None, 0)
+			return ("", None, 0, 0)
 
+		# this should be a valid message, parse to get the important parts
 		(transaction_id, queryornot, short_hostname, qtype, orig_question, answer_data, total_length) = self.DNS_proto.parse_dns(raw_message, self.hostname)
+		# it was parsed, we know the corrent length, let's get it from the buffer
+		# and leave the rest there
 		raw_message2, addr2 = self.comms_socket.recvfrom(total_length)
-		#print "%r" % raw_message
-		#print "%r" % raw_message2
 		if transaction_id == None:
 			common.internal_print("Malformed DNS packet received", -1)
 
-			return ("", None, 0)
+			return ("", None, 0, 0)
 
-		#print "Message read: %d - real length: %d" % (len(raw_message), total_length)
-
+		# server should receive queries, client should receive answers only
 		if (self.serverorclient and not queryornot) or (not self.serverorclient and queryornot):
 			common.internal_print("Server received answer or client received query.", -1)
-			return ("", None, 0)
+			return ("", None, 0, 0)
 
 		if self.serverorclient:
+			#server side
+			# burn packets even when we read, make sure nothing useless staying there
+			self.burn_unanswered_packets()
+
+			# can we answer from the zonefile?
 			record = self.DNS_proto.get_record(short_hostname, qtype, self.zone)
 			if record:
+				# yes we can, act like a DNS server.
 				answer = self.DNS_proto.build_answer(transaction_id, record, orig_question)
 				self.comms_socket.sendto(answer, addr)
 
-				return ("", None, 0)
+				return ("", None, 0, 0)
 			else:
-				if self.query_queue.is_item(orig_question):
-					common.internal_print("Query received for the same domain, impatient NS?", -1)
+				# no zonefile record was found, this must be a tunnel message
+				edata = short_hostname.replace(".", "")
+				userid = self.DNS_common.get_userid_from_character(edata[0:1])
+				current_client = common.lookup_client_userid(self.clients, userid)
+				if not current_client:
+					# no such client, drop this packet.
+					return ("", None, 0, 0)
 
-					return ("", None, 0)
-
-				edata = short_hostname.replace(".", "").replace("-", "=")
+				edata = edata[1:]
+				if len(edata) < 4:
+					return ("", None, 0, 0)
 				try:
-					message = self.Encodings.base64(edata, False)
+					message = self.encoding_class.decode(edata)
 				except:
-					return ("", None, 0)
-				self.query_queue.put((int(time.time()), transaction_id, orig_question, addr))
-				queue_length = 0
+					return ("", None, 0, 0)
 
 				header = message[1:3]
 				packet_number = self.DNS_common.get_packet_number_from_header(header)
 				fragment_number = self.DNS_common.get_fragment_number_from_header(header)
-				common.internal_print("DNS fragment read: {0} packet number: {1} / fragment: {2}".format(len(message), packet_number, fragment_number), 0, self.verbosity, common.DEBUG)
-				if packet_number not in self.qfragments:
-					self.qfragments[packet_number] = {}
-				self.qfragments[packet_number][fragment_number] = message
+				if current_client == None:
+					return ("", None, 0, 0)
+
+				if current_client.get_query_queue().is_item(orig_question):
+					current_client.get_query_queue().replace(orig_question, (int(time.time()), transaction_id, orig_question, addr))
+
+					return ("", None, 0, 0)
+
+				current_client.get_query_queue().put((int(time.time()), transaction_id, orig_question, addr))
+				queue_length = 0
+
+				common.internal_print("\033[33mDNS fragment read1: {0} packet number: {1} / fragment: {2}\033[39m".format(len(message), packet_number, fragment_number), 0, self.verbosity, common.DEBUG)
+				if packet_number not in current_client.get_qfragments():
+					current_client.get_qfragments()[packet_number] = {}
+				current_client.get_qfragments()[packet_number][fragment_number] = message
 
 				if self.DNS_common.is_last_fragment(header):
-					self.qlast_fragments[packet_number] = fragment_number
+					current_client.get_qlast_fragments()[packet_number] = fragment_number
 
-				if packet_number in self.qlast_fragments:
-					if len(self.qfragments[packet_number])-1 == self.qlast_fragments[packet_number]:
+				if packet_number in current_client.get_qlast_fragments():
+					if len(current_client.get_qfragments()[packet_number])-1 == current_client.get_qlast_fragments()[packet_number]:
 						message = message[0:2]
-						for i in range(0, len(self.qfragments[packet_number])):
-							message += self.qfragments[packet_number][i][3:]
-						del self.qfragments[packet_number]
-						del self.qlast_fragments[packet_number]
+						for i in range(0, len(current_client.get_qfragments()[packet_number])):
+							message += current_client.get_qfragments()[packet_number][i][3:]
+						del current_client.get_qfragments()[packet_number]
+						del current_client.get_qlast_fragments()[packet_number]
 					else:
-						return ("", None, 0)
+						return ("", None, 0, 0)
 				else:
-					return ("", None, 0)
+					return ("", None, 0, 0)
 		else:
-			message = answer_data
+			answer_data = self.DNS_proto.reverse_RR_type(self.recordtype)[3](answer_data)
+			userid = self.DNS_common.get_userid_from_character(answer_data[0:1])
+			message = answer_data[1:]
+			
 			if not len(message):
-				return ("", None, 0)
+				return ("", None, 0, 0)
+			if self.encoding_needed:
+				message = self.encoding_class.decode(message)
 			header = message[1:3]
 			packet_number = self.DNS_common.get_packet_number_from_header(header)
 			fragment_number = self.DNS_common.get_fragment_number_from_header(header)
 
-			if packet_number > (self.old_packet_number + 1):
-				for i in range(self.old_packet_number + 1, packet_number):
-					if not self.seems_to_be_lost_queue.is_item_full((i, 0)):
-						self.seems_to_be_lost_queue.put((i, 0))
-			
-			if packet_number > self.old_packet_number:
-				self.old_packet_number = packet_number
-
-			#print "recv s= %r" % message
-			#print self.DNS_common.get_fragment_number_from_header(header)
-			#print self.DNS_common.is_last_fragment(header)
-			common.internal_print("DNS fragment read: {0} packet number: {1} / fragment: {2}".format(len(message), packet_number, fragment_number), 0, self.verbosity, common.DEBUG)
-			
-			if packet_number not in self.afragments:
-				self.afragments[packet_number] = {}
-			self.afragments[packet_number][fragment_number] = message
-			self.seems_to_be_lost_queue.remove_specific(packet_number, fragment_number)
-			print "TBRQ: %d" % self.seems_to_be_lost_queue.length()
-
-			if self.DNS_common.is_last_fragment(header):
-				self.alast_fragments[packet_number] = fragment_number
-
-			if packet_number in self.alast_fragments:
-				if len(self.afragments[packet_number])-1 == self.alast_fragments[packet_number]:
-					message = message[0:2]
-					for i in range(0, len(self.afragments[packet_number])):
-						message += self.afragments[packet_number][i][3:]
-					del self.afragments[packet_number]
-					del self.alast_fragments[packet_number]
-					print self.afragments
-				else:
-					for i in range(0, len(self.afragments[packet_number])):
-						if i not in self.afragments[packet_number]:
-							self.seems_to_be_lost_queue.put((packet_number, i))
-					return ("", None, 0)
-			else:
-				self.seems_to_be_lost_queue.put((packet_number, fragment_number+1))
-				return ("", None, 0)
-			#'''
+			message = message[0:2]+message[3:]
+			common.internal_print("\033[33mDNS fragment read2: {0} packet number: {1} / fragment: {2}\033[39m".format(len(message), packet_number, fragment_number), 0, self.verbosity, common.DEBUG)
 
 		queue_length = ord(message[0:1])
-		#print "queue_length for dummy: %d" % queue_length
 		message = message[1:]
 
-		common.internal_print("DNS packet read: {0} packet number: {1}".format(len(message), packet_number), 0, self.verbosity, common.DEBUG)
-
-		return message, addr, queue_length
+		return message, addr, queue_length, userid
 
 	def communication(self, is_check):
 		self.rlist = [self.comms_socket]
@@ -432,32 +407,11 @@ class DNS_32(UDP_generic.UDP_generic):
 				if not readable:
 					if is_check:
 						raise socket.timeout
-					if self.serverorclient:
-						self.send(None, None, None)
-						'''
-						aq_l = self.answer_queue.qsize()
-						qq_l = self.query_queue.length()
-
-						if (qq_l < 2) or (aq_l == 0):
-							continue
-
-						while (qq_l > 2) and (aq_l > 1):
-							aq_l -= 1
-							qq_l -= 1
-							readytogo = self.answer_queue.get()
-							self.send(common.DATA_CHANNEL_BYTE,
-								readytogo, ((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port())))
-
-						readytogo = self.answer_queue.get()
-						aq_l = self.answer_queue.qsize()
-						self.send(common.DATA_CHANNEL_BYTE,
-							readytogo, ((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port())))
-						'''
-					else:
+					if not self.serverorclient:
 						if self.authenticated:
-							if not self.request_resend():
-								self.do_dummy_packet()
-							common.internal_print("DEBUG: Keep alive sent", 0, self.verbosity, common.DEBUG)
+							#if not self.request_resend():
+							self.do_dummy_packet()
+							common.internal_print("Keep alive sent", 0, self.verbosity, common.DEBUG)
 					continue
 
 				for s in readable:
@@ -473,21 +427,19 @@ class DNS_32(UDP_generic.UDP_generic):
 							readytogo = message[0:packetlen]
 							message = message[packetlen:]
 							if self.serverorclient:
-								c = self.clients[0]#common.lookup_client_priv(readytogo, self.clients)
+								c = common.lookup_client_priv(self.clients, readytogo)
 								if c:
-									self.send(common.DATA_CHANNEL_BYTE,
-										readytogo, (socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port()))
-
+									self.send(common.DATA_CHANNEL_BYTE, readytogo, (None, c.get_userid(), c))
 								else:
 									common.internal_print("Client not found, strange?!", 0, self.verbosity, common.DEBUG)
 									continue
 
 							else:
 								if self.authenticated:
-									self.send(common.DATA_CHANNEL_BYTE, readytogo, self.server_tuple)
+									self.send(common.DATA_CHANNEL_BYTE, readytogo, (self.server_tuple, self.userid, None))
 
 					if s is self.comms_socket:
-						message, addr, queue_length = self.recv()
+						message, addr, queue_length, userid = self.recv()
 
 						if len(message) == 0:
 							continue
@@ -495,10 +447,7 @@ class DNS_32(UDP_generic.UDP_generic):
 						c = None
 						if self.serverorclient:
 							self.authenticated = False
-							if len(self.clients):
-								c = self.clients[0]#common.lookup_client_pub(self.clients, addr)
-							else:
-								c = None
+							c = common.lookup_client_userid(self.clients, userid)
 						else:
 							if queue_length:
 								common.internal_print("sending {0} dummy packets".format(queue_length), 0, self.verbosity, common.DEBUG)
@@ -506,7 +455,7 @@ class DNS_32(UDP_generic.UDP_generic):
 									self.do_dummy_packet()
 
 						if common.is_control_channel(message[0:1]):
-							if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], (addr, 0)):
+							if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], (addr, userid, c)):
 								continue
 							else:
 								self.stop()
@@ -594,7 +543,7 @@ class DNS_32(UDP_generic.UDP_generic):
 				common.internal_print("'hostname' in '{0}' section does not match with the zonefile's origin".format(self.get_module_configname()), -1)
 				return
 		try:
-			common.internal_print("Starting server: {0} on {1}:{2}".format(self.get_module_name(), self.config.get("Global", "serverbind"), self.serverport))
+			common.internal_print("Starting module: {0} on {1}:{2}".format(self.get_module_name(), self.config.get("Global", "serverbind"), self.serverport))
 		
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 			server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

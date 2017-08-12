@@ -6,10 +6,76 @@ if "dns_proto.py" in sys.argv[0]:
 
 import struct
 import socket
+import Queue
+import math
 
 # local modules
 import client
 import common
+
+
+class DNS_Client(client.Client):
+	def __init__(self):
+		super(DNS_Client, self).__init__()
+		self.userid = None
+		self.query_queue = DNS_Queue()
+		self.cache_queue = DNS_Queue()
+		self.answer_queue = Queue.Queue()
+		self.apacket_number = 0
+		self.qfragments = {}
+		self.qlast_fragments = {}
+		self.recordtype = None
+		self.encoding_class = None
+		self.encoding_needed = True
+
+	def set_userid(self, userid):
+		self.userid = userid
+
+	def get_userid(self):
+		return self.userid
+
+	def get_query_queue(self):
+		return self.query_queue
+
+	def get_cache_queue(self):
+		return self.cache_queue
+
+	def get_answer_queue(self):
+		return self.answer_queue
+
+	def get_apacket_number(self):
+		return self.apacket_number
+
+	def set_apacket_number(self, apacket_number):
+		self.apacket_number = apacket_number
+		return
+
+	def get_qfragments(self):
+		return self.qfragments
+
+	def get_qlast_fragments(self):
+		return self.qlast_fragments
+
+	def get_recordtype(self):
+		return self.recordtype
+
+	def set_recordtype(self, recordtype):
+		self.recordtype = recordtype
+		return
+
+	def get_encoding_class(self):
+		return self.encoding_class
+
+	def set_encoding_class(self, encoding_class):
+		self.encoding_class = encoding_class
+		return
+
+	def get_encoding_needed(self):
+		return self.encoding_needed
+
+	def set_encoding_needed(self, encoding_needed):
+		self.encoding_needed = encoding_needed
+		return
 
 class DNS_Queue:
 
@@ -29,18 +95,32 @@ class DNS_Queue:
 				return True
 
 		return False
-	'''
+	
 	def replace(self, what, to):
 		for _item in self.__item_pool:
 			if _item[2] == what:
 				_item = to
-				return 
+				return
+		return
 
-		return 
-	'''
-	def length(self):
+	def qsize(self):
 
 		return len(self.__item_pool)
+
+	#TOCTOU?
+	def how_many_expired(self, expire):
+		expired = 0
+		for _item in self.__item_pool:
+			if _item[0] < expire:
+				expired += 1
+
+		return expired
+
+	def get_an_expired(self, expire):
+		for _item in self.__item_pool:
+			if _item[0] < expire:
+				self.__item_pool.remove(_item)
+				return _item
 
 	def remove_expired(self, expire):
 		items_to_remove = []
@@ -65,6 +145,7 @@ class DNS_Queue:
 	def get_specific(self, pn, fn):
 		for item_ in self.__item_pool:
 			if (item_[1] == pn) and (item_[2] == fn):
+				self.__item_pool.remove(item_)
 				return item_[3]
 
 		return None
@@ -78,14 +159,17 @@ class DNS_Queue:
 		return 
 
 class DNS_common():
+	def __init__(self):
+		self.userid_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-	def create_fragment_header(self, channel_bit, userid, packet_num, fragment_num, last_fragment):
+	#def create_fragment_header(self, channel_bit, userid, packet_num, fragment_num, last_fragment):
+	def create_fragment_header(self, channel_bit, packet_num, fragment_num, last_fragment):
 		if last_fragment:
 			last_fragment = 0x01
 		else:
 			last_fragment = 0x00
 
-		return struct.pack(">H", (channel_bit << 8) | ((userid & 0x07) << 12) | ((packet_num & 0x7F) << 5) | ((fragment_num & 0x0F) << 1) | last_fragment)
+		return struct.pack(">H", (channel_bit << 8) | ((packet_num & 0x3FF) << 5) | ((fragment_num & 0x0F) << 1) | last_fragment)
 
 	def get_channel_byte_from_header(self, header):
 		header_num = struct.unpack(">H", header)[0]
@@ -111,6 +195,21 @@ class DNS_common():
 		header_num = struct.unpack(">H", header)[0]
 
 		return (header_num & 0x01) == 0x01
+
+	def get_character_from_userid(self, userid):
+		if userid < len(self.userid_alphabet):
+			return self.userid_alphabet[userid]
+
+		return self.userid_alphabet[0]
+
+	def get_userid_from_character(self, userid):
+		for i in range(0, len(self.userid_alphabet)):
+			if self.userid_alphabet[i] == userid:
+				return i
+		return -1
+
+	def get_userid_length(self):
+		return len(self.userid_alphabet)
 
 	# get default nameserver to know where to send packets
 	# config file can override this.
@@ -207,103 +306,123 @@ class DNS_common():
 class DNS_Proto():
 	def __init__(self):
 		self.RR_types = {
-			1 : ["A", self.build_record_A],
-			2 : ["NS", self.build_record_NS],
-		    3 : ["MD", None],
-		    4 : ["MF", None],
-		    5 : ["CNAME", None],
-		    6 : ["SOA", self.build_record_SOA],
-		    7 : ["MB", None],
-		    8 : ["MG", None],
-		    9 : ["MR", None],
-		    10 : ["NULL", self.build_record_NULL],
-		    11 : ["WKS", None],
-		    12 : ["PTR", None],
-		    13 : ["HINFO", None],
-		    14 : ["MINFO", None],
-		    15 : ["MX", None],
-		    16 : ["TXT", None],
-		    17 : ["RP", None],
-		    18 : ["AFSDB", None],
-		    19 : ["X25", None],
-		    20 : ["ISDN", None],
-		    21 : ["RT", None],
-		    22 : ["NSAP", None],
-		    23 : ["NSAP-PTR", None],
-		    24 : ["SIG", None],
-		    25 : ["KEY", None],
-		    26 : ["PX", None],
-		    27 : ["GPOS", None],
-		    28 : ["AAAA", None],
-		    29 : ["LOC", None],
-		    30 : ["NXT", None],
-		    31 : ["EID", None],
-		    32 : ["NIMLOC", None],
-		    33 : ["SRV", None],
-		    34 : ["ATMA", None],
-		    35 : ["NAPTR", None],
-		    36 : ["KX", None],
-		    37 : ["CERT", None],
-		    38 : ["A6", None],
-		    39 : ["DNAME", None],
-		    40 : ["SINK", None],
-		    41 : ["OPT", None],
-		    42 : ["APL", None],
-		    43 : ["DS", None],
-		    44 : ["SSHFP", None],
-		    45 : ["IPSECKEY", None],
-		    46 : ["RRSIG", None],
-		    47 : ["NSEC", None],
-		    48 : ["DNSKEY", None],
-		    49 : ["DHCID", None],
-		    50 : ["NSEC3", None],
-		    51 : ["NSEC3PARAM", None],
-		    52 : ["TLSA", None],
-		    53 : ["SMIMEA", None],
-		    #54 : ["Unassigned", None],
-		    55 : ["HIP", None],
-		    56 : ["NINFO", None],
-		    57 : ["RKEY", None],
-		    58 : ["TALINK", None],
-		    59 : ["CDS", None],
-		    60 : ["CDNSKEY", None],
-		    61 : ["OPENPGPKEY", None],
-		    62 : ["CSYNC", None],
+			0 : ["", None, None, None], # answer with no answers
+			1 : ["A", self.build_record_A, self.pack_record_hostname, self.unpack_record_hostname],
+			2 : ["NS", self.build_record_NS, self.pack_record_id, self.unpack_record_id],
+		    3 : ["MD", None, None, None],
+		    4 : ["MF", None, None, None],
+		    5 : ["CNAME", self.build_record_CNAME, self.pack_record_hostname, self.unpack_record_hostname],
+		    6 : ["SOA", self.build_record_SOA, self.pack_record_id, self.unpack_record_id],
+		    7 : ["MB", None, None, None],
+		    8 : ["MG", None, None, None],
+		    9 : ["MR", None, None, None],
+		    10 : ["NULL", self.build_record_NULL, self.pack_record_id, self.unpack_record_id],
+		    11 : ["WKS", None, None, None],
+		    12 : ["PTR", None, None, None],
+		    13 : ["HINFO", None, None, None],
+		    14 : ["MINFO", None, None, None],
+		    15 : ["MX", None, None, None],
+		    16 : ["TXT", None, None, None],
+		    17 : ["RP", None, None, None],
+		    18 : ["AFSDB", None, None, None],
+		    19 : ["X25", None, None, None],
+		    20 : ["ISDN", None, None, None],
+		    21 : ["RT", None, None, None],
+		    22 : ["NSAP", None, None, None],
+		    23 : ["NSAP-PTR", None, None, None],
+		    24 : ["SIG", None, None, None],
+		    25 : ["KEY", None, None, None],
+		    26 : ["PX", None, None, None],
+		    27 : ["GPOS", None, None, None],
+		    28 : ["AAAA", None, None, None],
+		    29 : ["LOC", None, None, None],
+		    30 : ["NXT", None, None, None],
+		    31 : ["EID", None, None, None],
+		    32 : ["NIMLOC", None, None, None],
+		    33 : ["SRV", None, None, None],
+		    34 : ["ATMA", None, None, None],
+		    35 : ["NAPTR", None, None, None],
+		    36 : ["KX", None, None, None],
+		    37 : ["CERT", None, None, None],
+		    38 : ["A6", None, None, None],
+		    39 : ["DNAME", None, None, None],
+		    40 : ["SINK", None, None, None],
+		    41 : ["OPT", None, None, None],
+		    42 : ["APL", None, None, None],
+		    43 : ["DS", None, None, None],
+		    44 : ["SSHFP", None, None, None],
+		    45 : ["IPSECKEY", None, None, None],
+		    46 : ["RRSIG", None, None, None],
+		    47 : ["NSEC", None, None, None],
+		    48 : ["DNSKEY", None, None, None],
+		    49 : ["DHCID", None, None, None],
+		    50 : ["NSEC3", None, None, None],
+		    51 : ["NSEC3PARAM", None, None, None],
+		    52 : ["TLSA", None, None, None],
+		    53 : ["SMIMEA", None, None, None],
+		    #54 : ["Unassigned", None, None, None],
+		    55 : ["HIP", None, None, None],
+		    56 : ["NINFO", None, None, None],
+		    57 : ["RKEY", None, None, None],
+		    58 : ["TALINK", None, None, None],
+		    59 : ["CDS", None, None, None],
+		    60 : ["CDNSKEY", None, None, None],
+		    61 : ["OPENPGPKEY", None, None, None],
+		    62 : ["CSYNC", None, None, None],
 		    ## TEST
-		    #63-98 : ["Unassigned", None],
-		    99 : ["SPF", None],
-		    100 : ["UINFO", None],
-		    101 : ["UID", None],
-		    102 : ["GID", None],
-		    103 : ["UNSPEC", None],
-		    104 : ["NID", None],
-		    105 : ["L32", None],
-		    106 : ["L64", None],
-		    107 : ["LP", None],
-		    108 : ["EUI48", None],
-		    109 : ["EUI64", None],
+		    #63-98 : ["Unassigned", None, None, None],
+		    99 : ["SPF", None, None, None],
+		    100 : ["UINFO", None, None, None],
+		    101 : ["UID", None, None, None],
+		    102 : ["GID", None, None, None],
+		    103 : ["UNSPEC", None, None, None],
+		    104 : ["NID", None, None, None],
+		    105 : ["L32", None, None, None],
+		    106 : ["L64", None, None, None],
+		    107 : ["LP", None, None, None],
+		    108 : ["EUI48", None, None, None],
+		    109 : ["EUI64", None, None, None],
 		    ## TEST
-		    #110-248 : ["Unassigned", None],
-		    249 : ["TKEY", None],
-		    250 : ["TSIG", None],
-		    251 : ["IXFR", None],
-		    252 : ["AXFR", None],
-		    253 : ["MAILB", None],
-		    254 : ["MAILA", None],
-		    255 : ["*", self.build_record_ANY],
-		    256 : ["URI", None],
-		    257 : ["CAA", None],
-		    258 : ["AVC", None],
+		    #110-248 : ["Unassigned", None, None, None],
+		    249 : ["TKEY", None, None, None],
+		    250 : ["TSIG", None, None, None],
+		    251 : ["IXFR", None, None, None],
+		    252 : ["AXFR", None, None, None],
+		    253 : ["MAILB", None, None, None],
+		    254 : ["MAILA", None, None, None],
+		    255 : ["*", self.build_record_ANY, self.pack_record_id, self.unpack_record_id],
+		    256 : ["URI", None, None, None],
+		    257 : ["CAA", None, None, None],
+		    258 : ["AVC", None, None, None],
 		    ## TEST
-		    #259-32767 : ["Unassigned", None],
-		    32768 : ["TA", None],
-		    32769 : ["DLV", None],
+		    #259-32767 : ["Unassigned", None, None, None],
+		    32768 : ["TA", None, None, None],
+		    32769 : ["DLV", None, None, None],
+		    65399 : ["PRIVATE", self.build_record_PRIVATE, self.pack_record_id, self.unpack_record_id]
 		    ## TEST
-			#65280-65534 : ["Private use", None],
+			#65280-65534 : ["Private use", None, None, None],
 			## TEST
 		    #65535 : "Reserved"
 		}
 		return
+
+
+	def pack_record_id(self, data):
+		return data
+
+	def unpack_record_id(self, data):
+		return data
+
+	def pack_record_hostname(self, data):
+		hostname = ""
+		for j in range(0,int(math.ceil(float(len(data))/63))):
+			hostname += data[j*63:(j+1)*63]+"."
+
+		return hostname
+
+	def unpack_record_hostname(self, data):
+		hostname = self.hostnamebin_to_hostname(data)[1].replace(".", "")
+		return hostname.replace(".", "")
 
 	def build_record_A(self, record):
 		additional_record_num = 0
@@ -325,6 +444,17 @@ class DNS_Proto():
 		#additional_records = compress_hostname + struct.pack(">HHIH", 1, 1, 5, 4) + socket.inet_aton("1.1.1.1")
 
 		return (answer_num, answers, additional_record_num, additional_records)
+
+
+	def build_record_CNAME(self, record):
+		compress_hostname = self.hostname_to_hostnamebin(record[2])
+		additional_record_num = 0
+		additional_records = ""
+		answer_num = 1
+		answers = struct.pack(">HHHIH", 0xc00c, 5, 1, 5, len(compress_hostname)) + compress_hostname
+
+		return (answer_num, answers, additional_record_num, additional_records)
+
 
 	def build_record_ANY(self, record):
 		compress_hostname = self.hostname_to_hostnamebin(record[2])
@@ -351,27 +481,26 @@ class DNS_Proto():
 		return (answer_num, answers, additional_record_num, additional_records)
 
 	def build_record_NULL(self, record):
-		#?????
 		additional_record_num = 0
 		additional_records = ""
 
 		answer_num = 1
 
-		answers = struct.pack(">HHHIH", 0xc00c, 10, 1, 0, len(record[1])) + record[1]
+		answers = struct.pack(">HHHIH", 0xc00c, 10, 1, 0, len(record[2])) + record[2]
 		
 		return (answer_num, answers, additional_record_num, additional_records)
 
-	'''
-	hostname = "xfltreat.info"
-	ip = "54.76.113.73"
-	zone = {
-		0 : ["A", "", ip],
-		1 : ["A", "www", ip],
-		2 : ["NS", "", "ns1.rycon.hu", ip],
-		3 : ["SOA", "", "ns1.rycon.hu", "postmaster."+hostname, 2017070101, 43200, 10800, 604800, 1800],
-		4 : ["*", "", hostname, ip]
-	}
-	'''
+	def build_record_PRIVATE(self, record):
+		additional_record_num = 0
+		additional_records = ""
+
+		answer_num = 1
+
+		answers = struct.pack(">HHHIH", 0xc00c, 65399, 1, 0, len(record[2])) + record[2]
+		
+		return (answer_num, answers, additional_record_num, additional_records)
+
+
 	def reverse_RR_type(self, RRtype):
 		for i in self.RR_types:
 			if self.RR_types[i][0] == RRtype:
@@ -401,6 +530,7 @@ class DNS_Proto():
 		if hostname[len(hostname)-1:len(hostname)] != ".":
 			hostname += "."
 		i = 0
+
 		hostnamebin = ""
 		while not hostname[i:].find(".") == -1:
 			hostnamebin += struct.pack("B", hostname[i:].find(".")) + hostname[i:i+hostname[i:].find(".")]
@@ -483,10 +613,7 @@ class DNS_Proto():
 	def build_query(self, transaction_id, data, hostname, RRtype):
 		flag = 0x0100 #0000 0010 0000 0000
 		dns_header = struct.pack(">HHHHHH", transaction_id, flag, 1, 0, 0, 0)
-		#print data
-		#print hostname
 		qhostname = self.hostname_to_hostnamebin(data+hostname)
-		#print "%r" % qhostname
 
 		return dns_header + qhostname + struct.pack(">HH", RRtype, 1)
 
@@ -509,8 +636,6 @@ class DNS_Proto():
 				short_hostname = ""
 			else:
 				short_hostname = question_hostname[0:len(question_hostname)-len(hostname)-1]
-
-			#print "short hostname: {0}".format(short_hostname)
 
 			if len(msg) >= i+hlen+4:
 				orig_question = msg[i:i+hlen+4]
