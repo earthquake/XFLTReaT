@@ -7,6 +7,30 @@ if "encoding.py" in sys.argv[0]:
 import math
 import base64
 
+class id():
+	def encode(self, text):
+		return text
+
+	def decode(self, text):
+		return text
+
+	def get_maximum_length(self, cap):
+		return cap
+
+class Base64_DNS():
+	def encode(self, text):
+		return base64.b64encode(text).replace("=","").replace("/", "-")
+
+	def decode(self, text):
+		if len(text) % 4:
+			text += "="*(4-(len(text)%4))
+		return base64.b64decode(text.replace("-", "/"))
+
+	def get_maximum_length(self, cap):
+		full = int(math.floor(cap / 4))*3
+		remn = int(math.floor(((cap % 4)/4.0)*3))
+		return full + remn
+
 class Base64():
 	def encode(self, text):
 		return base64.b64encode(text).replace("=","")
