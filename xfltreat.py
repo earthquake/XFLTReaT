@@ -263,6 +263,7 @@ Balazs Bucsay [[@xoreipeip]]
 					raise
 
 			if self.checkmode:
+				interface.check_default_route()
 				m.__init_thread__(0, config, None, None, None, self.verbosity)
 				try:
 					m.check()

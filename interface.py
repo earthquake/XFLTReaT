@@ -95,6 +95,14 @@ class Interface():
 
 		return
 
+	def check_default_route(self):
+	 	if len(self.ip.get_default_routes()) < 1:
+			common.internal_print("No default route. Please set up your routing before executing the tool", -1)
+			sys.exit(-1)
+	 	if len(self.ip.get_default_routes()) > 1:
+			common.internal_print("More than one default route. This should be reviewed before executing the tool.", -1)
+			sys.exit(-1)	
+
 	# automatic routing set up.
 	# check for multiple default routes, if there are then print error message
 	# - save default route address
@@ -103,12 +111,7 @@ class Interface():
 	# - last route: server IP address routed over the original default route
 	def set_default_route(self, serverip, ip):
 		#TODO tunnel thru a tunnel
-	 	if len(self.ip.get_default_routes()) < 1:
-			common.internal_print("No default route. Please set up your routing before executing the tool", -1)
-			sys.exit(-1)
-	 	if len(self.ip.get_default_routes()) > 1:
-			common.internal_print("More than one default route. This should be reviewed before executing the tool.", -1)
-			sys.exit(-1)
+		self.check_default_route()
 	 	for attrs in self.ip.get_default_routes()[0]['attrs']:
 	 		if attrs[0] == "RTA_GATEWAY":
 				self.orig_default_gw = attrs[1]
