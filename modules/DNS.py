@@ -64,6 +64,7 @@ class DNS(UDP_generic.UDP_generic):
 		self.DNS_proto = DNS_Proto()
 		
 		self.zone = []
+		self.zonefile = None
 		self.DNS_query_timeout = 1.0
 		self.select_timeout = 1.0
 		self.lost_expiry = 20
