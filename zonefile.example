@@ -1,7 +1,7 @@
 $ORIGIN domain.com
 $TTL 86400
 @     IN     SOA    dns1.domain.com.     hostmaster.domain.com. (
-                    2001062501 ; serial
+                    2001062601 ; serial
                     21600      ; refresh after 6 hours
                     3600       ; retry after 1 hour
                     604800     ; expire after 1 week
