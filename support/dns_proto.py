@@ -240,7 +240,13 @@ class DNS_common():
 			f = open("/etc/resolv.conf", "r")
 			content = f.read()
 			f.close()
-			nameserver = content[content.find("nameserver")+len("nameserver "):content[content.find("nameserver"):].find("\n")+content.find("nameserver")]
+			for line in content.split("\n"):
+				if line.replace(" ", "").replace("\t", "")[0:1] == "#":
+					continue
+				if line.find("nameserver") != -1:
+					break
+
+			nameserver = line[line.find("nameserver")+len("nameserver "):len(line)+line.find("nameserver")]
 			if common.is_ipv4(nameserver) or common.is_ipv6(nameserver):
 				return nameserver
 			else:
