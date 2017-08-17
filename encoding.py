@@ -8,6 +8,9 @@ import math
 import base64
 
 class id():
+	def get_name(self):
+		return "Plaintext"
+
 	def encode(self, text):
 		return text
 
@@ -18,6 +21,9 @@ class id():
 		return cap
 
 class Base64_DNS():
+	def get_name(self):
+		return "Base64 DNS"
+
 	def encode(self, text):
 		return base64.b64encode(text).replace("=","").replace("/", "-")
 
@@ -32,6 +38,9 @@ class Base64_DNS():
 		return full + remn
 
 class Base64():
+	def get_name(self):
+		return "Base64"
+
 	def encode(self, text):
 		return base64.b64encode(text).replace("=","")
 
@@ -46,6 +55,9 @@ class Base64():
 		return full + remn
 
 class Base32():
+	def get_name(self):
+		return "Base32"
+
 	def encode(self, text):
 		return base64.b32encode(text).replace("=","")
 
@@ -60,6 +72,9 @@ class Base32():
 		return full + remn
 
 class Base16():
+	def get_name(self):
+		return "Base16"
+
 	def encode(self, text):
 		return base64.b16encode(text)
 
