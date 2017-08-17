@@ -47,7 +47,10 @@ class Base64():
 	def decode(self, text):
 		if len(text) % 4:
 			text += "="*(4-(len(text)%4))
-		return base64.b64decode(text)
+		try:
+			return base64.b64decode(text)
+		except:
+			return ""
 
 	def get_maximum_length(self, cap):
 		full = int(math.floor(cap / 4))*3
@@ -64,7 +67,10 @@ class Base32():
 	def decode(self, text):
 		if len(text) % 8:
 			text += "="*(8-(len(text)%8))
-		return base64.b32decode(text)
+		try:
+			return base64.b32decode(text)
+		except:
+			return ""
 
 	def get_maximum_length(self, cap):
 		full = int(math.floor(cap / 8))*5
@@ -79,7 +85,10 @@ class Base16():
 		return base64.b16encode(text)
 
 	def decode(self, text):
-		return base64.b16decode(text)
+		try:
+			return base64.b16decode(text)
+		except:
+			return ""
 
 	def get_maximum_length(self, cap):
 		return int(math.floor(cap/2))

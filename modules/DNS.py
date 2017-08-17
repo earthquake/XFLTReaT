@@ -1,6 +1,6 @@
 import sys
 
-if "DNS_32.py" in sys.argv[0]:
+if "DNS.py" in sys.argv[0]:
 	print "[-] Instead of poking around just try: python xfltreat.py --help"
 	sys.exit(-1)
 
@@ -29,15 +29,15 @@ from support.dns_proto import DNS_Queue
 from support.dns_proto import DNS_Client
 from interface import Interface # meh
 
-class DNS_32(UDP_generic.UDP_generic):
+class DNS(UDP_generic.UDP_generic):
 
-	module_name = "DNS 32"
-	module_configname = "DNS_32"
-	module_description = """DNS 32
+	module_name = "DNS"
+	module_configname = "DNS"
+	module_description = """DNS module with zone file support, base32, base64 etc.
 	"""
 
 	def __init__(self):
-		super(DNS_32, self).__init__()
+		super(DNS, self).__init__()
 		self.DNS_common = DNS_common()
 		self.DNS_proto = DNS_Proto()
 		
@@ -452,14 +452,10 @@ class DNS_32(UDP_generic.UDP_generic):
 			length_new -= len(self.CONTROL_AUTOTUNE_CLIENT)+3
 
 			cap = self.DNS_proto.reverse_RR_type(upload_record_type)[4](upload_length-len(prefix), self.hostname, 0, self.upload_encoding_list[upload_encoding])
-			#print "cap %d" % cap
 			message = struct.pack("<BHHH", 0, self.DNS_proto.reverse_RR_type_num(download_record_type), length_new, download_encoding)
-			#print "prefix: %r" % (self.CONTROL_AUTOTUNE + struct.pack("<H", upload_encoding))
-			#print "msg header: %r" % message
 
 			random_message = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(cap - len(message)))
 			message = prefix+self.tmp_encoding_list[upload_encoding].encode(message+random_message)
-			#print "msg pre: %r" % message
 			message = self.DNS_proto.reverse_RR_type(upload_record_type)[2](self.DNS_common.get_character_from_userid(0)+message)
 
 			packet = self.DNS_proto.build_query(int(random.random() * 65535), message, self.hostname, download_RRtype_num)
