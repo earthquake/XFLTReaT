@@ -979,7 +979,7 @@ class DNS(UDP_generic.UDP_generic):
 		if self.config.has_option(self.get_module_configname(), "zonefile"):
 			self.zonefile = self.config.get(self.get_module_configname(), "zonefile")
 			if not os.path.isfile(self.zonefile):
-				common.internal_print("File '{0}'' does not exists. Delete 'zonefile' line from config or create file.".format(self.get_module_configname()), -1)
+				common.internal_print("File '{0}' does not exists. Delete 'zonefile' line from config or create file.".format(self.get_module_configname()), -1)
 
 				return False
 
