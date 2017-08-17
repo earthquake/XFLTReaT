@@ -21,7 +21,9 @@ To have a somewhat stable release (without DNS), please use:
 To get the DNS support from the next version branch (which was not tested thoroughly, please keep that in mind):
 
 \# git clone https://github.com/earthquake/xfltreat/
+
 \# cd xfltreat
+
 \# git checkout -b next-version v0.2
 
 To configure DNS please check the DNS_notes.md.
