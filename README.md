@@ -15,12 +15,12 @@ This is just one thing of many things that was missing from the Internet. If you
 At the moment there are two different branches of the framework. The master branch is a somewhat stable version (v0.1) without the DNS module. The other branch is called next-version and that has the newer version (v0.2), which includes DNS support for a few records (A/CNAME, PRIVATE, NULL). This branch has not been tested thoroughly yet, please respect that before making an opinion about the source code and framework.
 
 To have a somewhat stable release (without DNS), please use:
-* \# git clone https://github.com/earthquake/xfltreat/
+\# git clone https://github.com/earthquake/xfltreat/
 
 To get the DNS support from the next version branch (which was not tested thoroughly, please keep that in mind):
-* \# git clone https://github.com/earthquake/xfltreat/
-* \# cd xfltreat
-* \# git checkout -b next-version v0.2
+\# git clone https://github.com/earthquake/xfltreat/
+\# cd xfltreat
+\# git checkout -b next-version v0.2
 To configure DNS please check the DNS_notes.md.
 
 ### Setup ###
