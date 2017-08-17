@@ -86,7 +86,7 @@ class DNS(UDP_generic.UDP_generic):
 		self.tmp_encoding_list = {
 			0	:	encoding.Base32(),
 			1	: 	encoding.Base64_DNS(),
-			#2	: 	encoding.id()
+			2	: 	encoding.id()
 		}
 
 		self.upload_encoding_list = {
@@ -108,9 +108,9 @@ class DNS(UDP_generic.UDP_generic):
 	def set_mtu_ugly(self, cap):
 		# sorry about this, this is a hack
 		# no better solution till the custom fragmentation is not implemented
-		cap -= 40 # IP+TCP
 		interface = Interface()
 		interface.set_mtu(self.config.get("Global", "clientif"), cap)
+		cap -= 40 # IP+TCP
 		os.system("iptables -t mangle -F")
 		os.system("iptables -t mangle -A POSTROUTING -p tcp --tcp-flags SYN,RST SYN -o {0} -j TCPMSS --set-mss {1}".format(self.config.get("Global", "clientif"), cap))
 
@@ -304,7 +304,7 @@ class DNS(UDP_generic.UDP_generic):
 			try:
 				raw_message, addr = server_socket.recvfrom(4096)
 			except socket.timeout:
-				common.internal_print("Request for {0} record with {1} encoding timed out.".format("A", self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
+				common.internal_print("Request for '{0}' record with '{1}' encoding timed out.".format("A", self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
 				m = upload_length
 				continue
 
@@ -320,7 +320,7 @@ class DNS(UDP_generic.UDP_generic):
 			message = answer_data[1:]
 			message = self.tmp_encoding_list[upload_encoding].decode(message)
 			if crc != message[len(self.CONTROL_AUTOTUNE_CLIENT)+3:]:
-				common.internal_print("Request for {0} record with {1} encoding failed: integrity error".format("A", self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
+				common.internal_print("Request for '{0}' record with '{1}' encoding failed: integrity error".format("A", self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
 				m = upload_length
 				continue
 			common.internal_print("Request succeed: u-r: {0} d-r: {1} u-e: {2} d-e: {3} u-l: {4} d-l: {5}".format(upload_record_type, download_record_type, self.upload_encoding_list[upload_encoding].get_name(), self.tmp_encoding_list[download_encoding].get_name(), upload_length, download_length), 1, self.verbosity, common.VERBOSE)
@@ -328,7 +328,7 @@ class DNS(UDP_generic.UDP_generic):
 			l = upload_length
 			best_upload_length = upload_length
 
-		common.internal_print("Record 'A' with {0} encoding can be used with maximum length of {1}".format(self.upload_encoding_list[best_upload_encoding].get_name(), best_upload_length), 1)
+		common.internal_print("Record 'A' with '{0}' encoding can be used with maximum length of {1}".format(self.upload_encoding_list[best_upload_encoding].get_name(), best_upload_length), 1)
 
 		# record discovery
 		best_download_record_type = 0
@@ -354,7 +354,7 @@ class DNS(UDP_generic.UDP_generic):
 			try:
 				raw_message, addr = server_socket.recvfrom(4096)
 			except socket.timeout:
-				common.internal_print("Request for {0} record with {1} encoding timed out.".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
+				common.internal_print("Request for '{0}' record with '{1}' encoding timed out.".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
 				continue
 
 			(transaction_id, queryornot, short_hostname, qtype, orig_question, answer_data, total_length, reason) = self.DNS_proto.parse_dns(raw_message, self.hostname)
@@ -368,7 +368,7 @@ class DNS(UDP_generic.UDP_generic):
 			message = answer_data[1:]
 			message = self.tmp_encoding_list[download_encoding].decode(message)[len(self.CONTROL_AUTOTUNE_CLIENT)+3:]
 			if len(message) != download_length:
-				common.internal_print("Request for {0} record with {1} encoding failed: wrong length".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
+				common.internal_print("Request for '{0}' record with '{1}' encoding failed: wrong length".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
 				continue
 
 			common.internal_print("Request succeed: u-r: {0} d-r: {1} u-e: {2} d-e: {3} u-l: {4} d-l: {5}".format(upload_record_type, download_record_type, self.tmp_encoding_list[upload_encoding].get_name(), self.tmp_encoding_list[download_encoding].get_name(), upload_length, download_length), 1, self.verbosity, common.VERBOSE)
@@ -381,7 +381,8 @@ class DNS(UDP_generic.UDP_generic):
 		# get best encoding for the best record type
 		best_download_encoding = 0
 		for download_encoding in self.tmp_encoding_list:
-			if (download_encoding == 2) and (download_record_type == 2):
+			# hacky again, but do not use CNAME with plaintext
+			if (download_encoding == 2) and (download_record_type == self.record_list[2][1]):
 				continue
 			upload_encoding = best_upload_encoding
 			upload_length = 50
@@ -405,7 +406,7 @@ class DNS(UDP_generic.UDP_generic):
 			try:
 				raw_message, addr = server_socket.recvfrom(4096)
 			except socket.timeout:
-				common.internal_print("Request for {0} record with {1} encoding timed out.".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
+				common.internal_print("Request for '{0}' record with '{1}' encoding timed out.".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
 				continue
 
 			(transaction_id, queryornot, short_hostname, qtype, orig_question, answer_data, total_length, reason) = self.DNS_proto.parse_dns(raw_message, self.hostname)
@@ -419,13 +420,13 @@ class DNS(UDP_generic.UDP_generic):
 			message = answer_data[1:]
 			message = self.tmp_encoding_list[download_encoding].decode(message)[len(self.CONTROL_AUTOTUNE_CLIENT)+3:]
 			if message != random_message:
-				common.internal_print("Request for {0} record with {1} encoding failed: wrong length".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
+				common.internal_print("Request for '{0}' record with '{1}' encoding failed: wrong length".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
 				continue
 
 			common.internal_print("Request succeed: u-r: {0} d-r: {1} u-e: {2} d-e: {3} u-l: {4} d-l: {5}".format(upload_record_type, download_record_type, self.tmp_encoding_list[upload_encoding].get_name(), self.tmp_encoding_list[download_encoding].get_name(), upload_length, download_length), 1, self.verbosity, common.VERBOSE)
 			best_download_encoding = download_encoding
 
-		common.internal_print("Record '{0}' can be used with encoding {1} for downstream.".format(self.record_list[best_download_record_type][1], self.tmp_encoding_list[best_download_encoding].get_name()), 1)
+		common.internal_print("Record '{0}' can be used with encoding '{1}' for downstream.".format(self.record_list[best_download_record_type][1], self.tmp_encoding_list[best_download_encoding].get_name()), 1)
 
 
 		# get max througput
@@ -448,7 +449,7 @@ class DNS(UDP_generic.UDP_generic):
 
 			prefix = self.tmp_encoding_list[0].encode(self.CONTROL_AUTOTUNE + struct.pack("<H", upload_encoding))
 
-			length_new = download_RRtype[4](download_length, "", 0, self.tmp_encoding_list[upload_encoding])
+			length_new = download_RRtype[4](download_length, "", 0, self.tmp_encoding_list[download_encoding])
 			length_new -= len(self.CONTROL_AUTOTUNE_CLIENT)+3
 
 			cap = self.DNS_proto.reverse_RR_type(upload_record_type)[4](upload_length-len(prefix), self.hostname, 0, self.upload_encoding_list[upload_encoding])
@@ -464,13 +465,13 @@ class DNS(UDP_generic.UDP_generic):
 			try:
 				raw_message, addr = server_socket.recvfrom(4096)
 			except socket.timeout:
-				common.internal_print("Request for {0} record with {1} encoding timed out.".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
+				common.internal_print("Request for '{0}' record with '{1}'' encoding timed out.".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
 				m = download_length
 				continue
 
 			(transaction_id, queryornot, short_hostname, qtype, orig_question, answer_data, total_length, reason) = self.DNS_proto.parse_dns(raw_message, self.hostname)
 			if reason:
-				common.internal_print(self.DNS_proto.response_codes[reason], -1, self.verbosity, common.DEBUG)			
+				common.internal_print(self.DNS_proto.response_codes[reason], -1, self.verbosity, common.DEBUG)
 			#if transaction_id == None:
 				m = download_length
 			#	common.internal_print("Request for {0} record with {1} encoding failed: format error.".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
@@ -482,7 +483,7 @@ class DNS(UDP_generic.UDP_generic):
 			#print "msg post: %r" % message
 			#print "len post, pre  %d : %d" % ( len(message), length_new)
 			if len(message) != length_new:
-				common.internal_print("Request for {0} record with {1} encoding failed: wrong length".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
+				common.internal_print("Request for '{0}' record with '{1}' encoding failed: wrong length".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
 				m = download_length
 				continue
 
@@ -490,7 +491,7 @@ class DNS(UDP_generic.UDP_generic):
 			l = download_length
 
 		best_download_length = download_length
-		common.internal_print("Record '{0}' will be used with encoding {1} and length {2} for downstream.".format(self.record_list[best_download_record_type][1], self.tmp_encoding_list[best_download_encoding].get_name(), best_download_length), 1)
+		common.internal_print("Record '{0}' will be used with encoding '{1}' and length {2} for downstream.".format(self.record_list[best_download_record_type][1], self.tmp_encoding_list[best_download_encoding].get_name(), best_download_length), 1)
 
 		self.settings = (best_upload_encoding, best_download_encoding, best_upload_length, best_download_length, best_download_record_type)
 
