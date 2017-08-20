@@ -53,7 +53,7 @@ class ControlChannel():
 
 
 	def cmh_check_query(self, module, message, additional_data, cm):
-		result = module.checks.check_default_calculate_challange(message[len(common.CONTROL_CHECK):])
+		result = module.checks.check_default_calculate_challenge(message[len(common.CONTROL_CHECK):])
 		common.internal_print("Module check requested for: {0}".format(module.module_name))
 		module.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK_RESULT+result, additional_data)
 

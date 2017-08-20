@@ -71,7 +71,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 	# check request: generating a challenge and sending it to the server
 	# in case the answer is that is expected, the targer is a valid server
 	def do_check(self):
-		message, self.check_result = self.checks.check_default_generate_challange()
+		message, self.check_result = self.checks.check_default_generate_challenge()
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, None)
 
 		return

@@ -20,6 +20,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+# this file is placeholder, most probably the structure of the checks will
+# change. So do not count on this file please.
+
 import sys
 
 if "checks.py" in sys.argv[0]:
@@ -33,13 +36,15 @@ class Checks():
 	def __init__(self):
 		return
 
-	def check_default_generate_challange(self):
+	# generating challenge and saving the solution in the return values
+	def check_default_generate_challenge(self):
 		number1 = random.randint(0, 4294967295)
 		number2 = random.randint(0, 4294967295)
 		number3 = number1 ^ number2
 
 		return (struct.pack(">II", number1, number2), struct.pack(">I", number3))
 
-	def check_default_calculate_challange(self, leftover):
-		numbers = struct.unpack(">II", leftover)
+	# calculate result for challenge
+	def check_default_calculate_challenge(self, challenge):
+		numbers = struct.unpack(">II", challenge)
 		return struct.pack(">I", numbers[0] ^ numbers[1])

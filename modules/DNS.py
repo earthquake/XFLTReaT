@@ -581,7 +581,7 @@ class DNS(UDP_generic.UDP_generic):
 		return
 
 	def do_check(self):
-		message, self.check_result = self.checks.check_default_generate_challange()
+		message, self.check_result = self.checks.check_default_generate_challenge()
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, (self.server_tuple, 0, None))
 
 		return
