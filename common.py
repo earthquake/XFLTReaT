@@ -44,11 +44,11 @@ CONTROL_AUTH_NOTOK 		 = "XFLT>AUTH_NOTOK"
 CONTROL_LOGOFF 			 = "XFLT>LOGOFF!"
 CONTROL_DUMMY_PACKET	 = "XFLT>DUMMY_PACKET"
 
-# severity levels:
+# print severity levels:
 # 	0	always
 #	1	verbose (common.VERBOSE)
 #	2	debug   (common.DEBUG)
-# feedback levels:
+# print feedback levels:
 #	-1	negativ
 #	0	neutral
 #	1	positive
@@ -68,6 +68,7 @@ def internal_print(message, feedback = 0, verbosity = 0, severity = 0):
 			prefix = "\033[92m[+]"
 		print "%s %s%s\033[39m" % (prefix, debug, message)
 
+# check if the requirements are met
 def check_modules_installed():
 	reqs = ["pyroute2"]
 	allinstalled = True
@@ -79,10 +80,12 @@ def check_modules_installed():
 	return allinstalled
 
 
+# get os type. No need to import 'platform' in every module this way.
 def get_os_type():
 
 	return platform.system()
 
+# check if the forwarding was set properly.
 def check_router_settings(config):
 	if platform.system() == "Linux":
 		if open('/proc/sys/net/ipv4/ip_forward','r').read()[0:1] == "0":
@@ -94,6 +97,8 @@ def check_router_settings(config):
 	return True
 
 
+# main config sanity check. If something missing from the Global section, then
+# shouts.
 def config_sanity_check(config, serverorclient):
 	if not config.has_section("Global"):
 		internal_print("config file missing 'Global' section", -1)
@@ -154,6 +159,7 @@ def config_sanity_check(config, serverorclient):
 
 	return True
 
+# dummy function to check whether it is control channel or not.
 def is_control_channel(control_character):
 	if control_character == None:
 		return False
@@ -162,21 +168,27 @@ def is_control_channel(control_character):
 	else:
 		return False
 
-
+# initialization of the stateful client object
+# TODO: shouldn't it to be in the Statefu module?
 def init_client_stateful(msg, addr, client, packetselector):
 	## TODO error handling
 	client_private_ip = msg[0:4]
 	client_public_source_ip = socket.inet_aton(addr[0])
 	client_public_source_port = addr[1]
 
+	# If this private IP is already used, the server removes that client.
+	# For example: client reconnect on connection reset, duplicated configs
+	# and yes, this can be used to kick somebody off the tunnel
 	for c in packetselector.get_clients():
 		if c.get_private_ip_addr() == client_private_ip:
 			packetselector.delete_client(c)
 
+	# creating new pipes for the client
 	pipe_r, pipe_w = os.pipe()
 	client.set_pipes_fdnum(pipe_r, pipe_w)
 	client.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
 
+	# set connection related things and authenticated to True
 	client.set_public_ip_addr(client_public_source_ip)
 	client.set_public_src_port(client_public_source_port)
 	client.set_private_ip_addr(client_private_ip)
@@ -184,12 +196,20 @@ def init_client_stateful(msg, addr, client, packetselector):
 
 	return
 
+# initialization of the stateless client object
+# TODO: shouldn't it to be in the Statefu module?
 def init_client_stateless(msg, addr, client, packetselector, clients):
 	## TODO error handling
 	client_private_ip = msg[0:4]
 	client_public_source_ip = socket.inet_aton(addr[0])
 	client_public_source_port = addr[1]
 
+	# If this private IP is already used, the server removes that client.
+	# For example: client reconnect on connection reset, duplicated configs
+	# and yes, this can be used to kick somebody off the tunnel
+
+	# close client related pipes
+	# TODO it should go after the ps remove below.
 	for c in clients:
 		if c.get_private_ip_addr() == client_private_ip:
 			delete_client_stateless(clients, c)
@@ -198,10 +218,12 @@ def init_client_stateless(msg, addr, client, packetselector, clients):
 		if c.get_private_ip_addr() == client_private_ip:
 			packetselector.delete_client(c)
 
+	# creating new pipes for the client
 	pipe_r, pipe_w = os.pipe()
 	client.set_pipes_fdnum(pipe_r, pipe_w)
 	client.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
 
+	# set connection related things and authenticated to True
 	client.set_public_ip_addr(client_public_source_ip)
 	client.set_public_src_port(client_public_source_port)
 	client.set_private_ip_addr(client_private_ip)
@@ -209,11 +231,13 @@ def init_client_stateless(msg, addr, client, packetselector, clients):
 
 	return
 
+# remove client from client list and close down the pipes
 def delete_client_stateless(clients, client):
 	clients.remove(client)
 	client.get_pipe_r_fd().close()
 	client.get_pipe_w_fd().close()
 
+# looking for client, based on the private IP
 def lookup_client_priv(clients, msg):
 	client_private_ip = msg[16:20]
 
@@ -223,6 +247,7 @@ def lookup_client_priv(clients, msg):
 
 	return None
 
+# looking for client, based on the public IP
 def lookup_client_pub(clients, addr):
 	client_public_ip = socket.inet_aton(addr[0])
 
@@ -232,6 +257,7 @@ def lookup_client_pub(clients, addr):
 
 	return None
 
+# looking for client, based on the userid
 def lookup_client_userid(clients, userid):
 
 	for c in clients:
