@@ -78,6 +78,7 @@ Balazs Bucsay [[@xoreipeip]]
 		self.short = "hsc"
 		self.long = ["help", "server", "client", "check", "config=", "verbose="]
 
+		# modules that should not be loaded
 		self.forbidden_modules = ["Generic_module", "Stateful_module", "Stateless_module"]
 		self.forbidden_modules_instance = [Generic_module, Stateful_module, Stateless_module]
 
@@ -115,6 +116,7 @@ Balazs Bucsay [[@xoreipeip]]
 		if not common.check_modules_installed():
 			exit(-1)
 
+		# set the servermode when it was not specified expicitly
 		if (not self.clientmode and not self.checkmode):
 			self.servermode = 1
 
@@ -170,7 +172,7 @@ Balazs Bucsay [[@xoreipeip]]
 					# 5. actual instantiation of a module
 					modules.append(r())
 
-		# if the module is enabled from config, we make store it in modules_enabled[]
+		# if the module is enabled from config, we store it in modules_enabled[]
 		modules_enabled = []
 		for m in modules:
 			enabled = "no"
