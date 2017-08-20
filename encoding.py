@@ -84,13 +84,13 @@ class Base32():
 		return "Base32"
 
 	def encode(self, text):
-		return base64.b32encode(text).replace("=","")
+		return base64.b32encode(text).replace("=","").lower()
 
 	def decode(self, text):
 		if len(text) % 8:
 			text += "="*(8-(len(text)%8))
 		try:
-			return base64.b32decode(text)
+			return base64.b32decode(text.upper())
 		except:
 			return ""
 
@@ -104,11 +104,11 @@ class Base16():
 		return "Base16"
 
 	def encode(self, text):
-		return base64.b16encode(text)
+		return base64.b16encode(text).lower()
 
 	def decode(self, text):
 		try:
-			return base64.b16decode(text)
+			return base64.b16decode(text.upper())
 		except:
 			return ""
 
