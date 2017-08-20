@@ -202,7 +202,7 @@ Balazs Bucsay [[@xoreipeip]]
 		common.internal_print("Setting up interface")
 		interface = Interface()
 
-		# Operating in server mode
+		# Setting up interface related things for server mode
 		if self.servermode:
 			server_tunnel = interface.tun_alloc(config.get("Global", "serverif"), interface.IFF_TUN|interface.IFF_NO_PI)
 			interface.set_ip_address(config.get("Global", "serverif"), 
@@ -213,7 +213,7 @@ Balazs Bucsay [[@xoreipeip]]
 			ps = PacketSelector(server_tunnel)
 			ps.start()
 
-		# Operating in client mode
+		# Setting up interface related things for client mode
 		if self.clientmode:
 			client_tunnel = interface.tun_alloc(config.get("Global", "clientif"), interface.IFF_TUN|interface.IFF_NO_PI)
 			interface.set_ip_address(config.get("Global", "clientif"), 
@@ -225,12 +225,23 @@ Balazs Bucsay [[@xoreipeip]]
 		module_thread_num = 0
 
 		for m in modules_enabled:
+			# Executing module in server mode
 			if self.servermode:
 				module_thread_num = module_thread_num + 1
 				m.__init_thread__(module_thread_num, config, server_tunnel, ps, auth_module, self.verbosity)
 				m.start()
 				module_threads.append(m)
 
+			# Executing module in check mode
+			if self.checkmode:
+				interface.check_default_route()
+				m.__init_thread__(0, config, None, None, None, self.verbosity)
+				try:
+					m.check()
+				except KeyboardInterrupt:
+					pass
+
+			# Executing module in client mode
 			if self.clientmode:
 				try:
 					remoteserverip = config.get("Global", "remoteserverip")
@@ -255,10 +266,12 @@ Balazs Bucsay [[@xoreipeip]]
 					interface.close_tunnel(client_tunnel)
 					interface.restore_routes(remoteserverip)
 				except KeyboardInterrupt:
+					# CTRL+C was pushed
 					interface.close_tunnel(client_tunnel)
 					interface.restore_routes(remoteserverip)
 					pass
 				except socket.error as e:
+					# socket related error
 					interface.close_tunnel(client_tunnel)
 					interface.restore_routes(remoteserverip)
 					if e.errno == errno.ECONNREFUSED:
@@ -270,14 +283,7 @@ Balazs Bucsay [[@xoreipeip]]
 					interface.restore_routes(remoteserverip)
 					raise
 
-			if self.checkmode:
-				interface.check_default_route()
-				m.__init_thread__(0, config, None, None, None, self.verbosity)
-				try:
-					m.check()
-				except KeyboardInterrupt:
-					pass
-		# 
+		# No modules found enabled
 		if not module_threads:
 			common.internal_print("Exiting...")
 			if (self.servermode or (not self.clientmode and not self.checkmode)):
@@ -286,6 +292,8 @@ Balazs Bucsay [[@xoreipeip]]
 			time.sleep(0.5)
 			try:
 				common.internal_print("Please use CTRL+C to exit...")
+				# found no better solution to keep the main thread and catch CTRL+C
+				# if you know any, you know how to tell me ;)
 				while True:
 					time.sleep(1000)
 			except KeyboardInterrupt:
