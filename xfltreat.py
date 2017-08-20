@@ -90,12 +90,12 @@ Balazs Bucsay [[@xoreipeip]]
 			opts, args = getopt.getopt(argv, self.short, self.long)
 		except getopt.GetoptError:
 			self.usage()
-			exit(-1)
+			sys.exit(-1)
 
 		for opt, arg in opts:
 			if opt in ("-h", "--help"):
 				self.usage()
-				exit(0)
+				sys.exit(0)
 			elif opt in ("-s", "--server"):
 				self.servermode = 1
 			elif opt in ("-c", "--client"):
@@ -109,12 +109,12 @@ Balazs Bucsay [[@xoreipeip]]
 					self.verbosity = int(arg)
 				except:
 					common.internal_print("Invalid verbose value: {0}".format(arg), -1)
-					exit(-1)
+					sys.exit(-1)
 
 
 		# check requirements (python modules) whether or not installed
 		if not common.check_modules_installed():
-			exit(-1)
+			sys.exit(-1)
 
 		# set the servermode when it was not specified expicitly
 		if (not self.clientmode and not self.checkmode):
@@ -123,7 +123,7 @@ Balazs Bucsay [[@xoreipeip]]
 		# checking for the config file
 		if not os.path.isfile(self.configfile):
 			common.internal_print("config file missing!", -1)
-			exit(-1)
+			sys.exit(-1)
 		
 		# Looking for and parsing config file.
 		common.internal_print("Parsing config file")
@@ -132,24 +132,24 @@ Balazs Bucsay [[@xoreipeip]]
 			config.read(self.configfile)
 		except:
 			common.internal_print("Invalid or malformed configuration file specified", -1)
-			exit(-1)
+			sys.exit(-1)
 
 		# sanity check on configuration, exit on error
 		if not common.config_sanity_check(config, (self.servermode or (not self.clientmode and not self.checkmode))):
-			exit(-1)
+			sys.exit(-1)
 
 		# load authentication module
 		auth_module = self.authentication.load_auth_module(config)
 
 		#sanity check for the auth module
 		if not auth_module.sanity_check(config):
-			exit(-1)
+			sys.exit(-1)
 
 		# Check system config for routing. If the OS was not set up for IP 
 		# forwarding then we need to exit.
 		if self.servermode:
 			if not common.check_router_settings(config):
-				exit(-1)
+				sys.exit(-1)
 
 		# Loading modules from modules/ directory
 		# 1. listing and loading all modules except forbidden ones
@@ -176,20 +176,26 @@ Balazs Bucsay [[@xoreipeip]]
 		modules_enabled = []
 		for m in modules:
 			enabled = "no"
+			# is there any section in the config for the module?
 			if not config.has_section(m.get_module_configname()):
 				common.internal_print("No section in config for module: {0}".format(m.get_module_configname()), -1)
 				continue
 			
+			# is the 'enabled' option there for the module?
+			if not config.has_option(m.get_module_configname(), "enabled"):
+				common.internal_print("No option 'enabled' in config for module: {0}".format(m.get_module_configname()), -1)
+				sys.exit(-1)
+
 			enabled = config.get(m.get_module_configname(), "enabled")
 			
 			if enabled == "yes":
-				# looks like the module is enabled, adding to modules|_enabled[]
+				# looks like the module is enabled, adding to modules_enabled[]
 				modules_enabled.append(m)
 
 		# check if more than one module is enabled for client mode
 		if self.clientmode and (len(modules_enabled)>1):
 			common.internal_print("In client mode only one module can be used.", -1)
-			exit(-1)
+			sys.exit(-1)
 
 		# One Interface to rule them all, One Interface to find them,
 		# One Interface to bring them all and in the darkness bind them
@@ -219,7 +225,7 @@ Balazs Bucsay [[@xoreipeip]]
 		module_thread_num = 0
 
 		for m in modules_enabled:
-			if (self.servermode or (not self.clientmode and not self.checkmode)):
+			if self.servermode:
 				module_thread_num = module_thread_num + 1
 				m.__init_thread__(module_thread_num, config, server_tunnel, ps, auth_module, self.verbosity)
 				m.start()
