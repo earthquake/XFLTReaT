@@ -82,7 +82,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 			transformed_message = self.transform(common.DATA_CHANNEL_BYTE+message, 1)
 
 		common.internal_print("UDP sent: {0}".format(len(transformed_message)), 0, self.verbosity, common.DEBUG)
-		
+
 		return self.comms_socket.sendto(struct.pack(">H", len(transformed_message))+transformed_message, addr)
 
 	def recv(self):

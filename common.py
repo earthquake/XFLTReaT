@@ -33,7 +33,7 @@ import os
 import re
 import platform
 
-DATA_CHANNEL_BYTE 	 = "\x00"
+DATA_CHANNEL_BYTE	 = "\x00"
 CONTROL_CHANNEL_BYTE = "\x80"
 
 CONTROL_CHECK   		 = "XFLT>CHECK!"
