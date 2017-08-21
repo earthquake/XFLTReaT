@@ -95,6 +95,7 @@ class Interface():
 
 		return
 
+	# check if more than one or no default route is present
 	def check_default_route(self):
 	 	if len(self.ip.get_default_routes()) < 1:
 			common.internal_print("No default route. Please set up your routing before executing the tool", -1)
@@ -115,6 +116,7 @@ class Interface():
 		routes = self.ip.get_routes()
 
 		self.check_default_route()
+		# looking for the the remote server in the route table
 	 	for attrs in self.ip.get_default_routes()[0]['attrs']:
 	 		if attrs[0] == "RTA_GATEWAY":
 				self.orig_default_gw = attrs[1]
@@ -129,11 +131,13 @@ class Interface():
 					j = a
 			if (i > -1) and (j > -1):
 				if (r["attrs"][i][1] == serverip) and (r["attrs"][j][1] == self.orig_default_gw):
+					# remote server route was already added
 					found = True
 
 		self.ip.route('delete', gateway=self.orig_default_gw, dst="0.0.0.0")
 		self.ip.route('add', gateway=ip, dst="0.0.0.0")
 		if not found:
+			# remote server route was not in the table, adding to it
 			self.ip.route('add', gateway=self.orig_default_gw, dst=serverip, mask=32)
 		
 		return
