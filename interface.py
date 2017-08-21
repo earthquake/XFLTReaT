@@ -111,13 +111,30 @@ class Interface():
 	# - last route: server IP address routed over the original default route
 	def set_default_route(self, serverip, ip):
 		#TODO tunnel thru a tunnel
+		found = False
+		routes = self.ip.get_routes()
+
 		self.check_default_route()
 	 	for attrs in self.ip.get_default_routes()[0]['attrs']:
 	 		if attrs[0] == "RTA_GATEWAY":
 				self.orig_default_gw = attrs[1]
+
+		for r in routes:
+			i = -1
+			j = -1
+			for a in range(0, len(r["attrs"])):
+				if r["attrs"][a][0] == "RTA_DST":
+					i = a
+				if r["attrs"][a][0] == "RTA_GATEWAY":
+					j = a
+			if (i > -1) and (j > -1):
+				if (r["attrs"][i][1] == serverip) and (r["attrs"][j][1] == self.orig_default_gw):
+					found = True
+
 		self.ip.route('delete', gateway=self.orig_default_gw, dst="0.0.0.0")
 		self.ip.route('add', gateway=ip, dst="0.0.0.0")
-		self.ip.route('add', gateway=self.orig_default_gw, dst=serverip, mask=32)
+		if not found:
+			self.ip.route('add', gateway=self.orig_default_gw, dst=serverip, mask=32)
 		
 		return
 
