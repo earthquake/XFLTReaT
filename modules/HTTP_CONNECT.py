@@ -41,8 +41,8 @@ import client
 import common
 
 class HTTP_CONNECT_thread(TCP_generic.TCP_generic_thread):
-	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, verbosity, config, module_name):
-		super(HTTP_CONNECT_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, verbosity, config, module_name)
+	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name):
+		super(HTTP_CONNECT_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name)
 
 class HTTP_CONNECT(TCP_generic.TCP_generic):
 
