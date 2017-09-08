@@ -9,6 +9,7 @@ This is just one thing of many things that was missing from the Internet. If you
 * SOCKS v4, 4a, 5
 * HTTP CONNECT
 * DNS (A/CNAME, PRIVATE, NULL) - Proof of Concept
+* SCTP (note - needs sctp libraries.)
 
 ### Available versions ###
 
