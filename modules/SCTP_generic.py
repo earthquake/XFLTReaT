@@ -5,7 +5,7 @@ if "SCTP_generic.py" in sys.argv[0]:
 	sys.exit(-1)
 
 import socket
-import sctp
+from sctp import *
 import time
 import select
 import os
