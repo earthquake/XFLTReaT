@@ -280,6 +280,8 @@ class TCP_generic(Stateful_module.Stateful_module):
 				thread = TCP_generic_thread(threadsnum, 1, self.tunnel, self.packetselector, client_socket, client_addr, self.auth_module, self.verbosity, self.config, self.get_module_name())
 				thread.start()
 				self.threads.append(thread)
+			if self._stop:
+				self.stop()
 
 		except socket.error as exception:
 			# [Errno 98] Address already in use
