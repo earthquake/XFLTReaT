@@ -71,7 +71,7 @@ def internal_print(message, feedback = 0, verbosity = 0, severity = 0):
 
 # check if the requirements are met
 def check_modules_installed():
-	reqs = ["pyroute2"]
+	reqs = ["pyroute2", "sctp"]
 	allinstalled = True
 	for m in reqs:
 		if not pkgutil.find_loader(m):
