@@ -217,7 +217,7 @@ class TCP_generic(Stateful_module.Stateful_module):
 	module_configname = "TCP_generic"
 	module_description = """Generic TCP module that can listen on any port.
 		This module lacks of any encryption or encoding, which comes to the interface
-		goes to the socket back and forth. Northing special.
+		goes to the socket back and forth. Nothing special.
 		"""
 
 	def __init__(self):

@@ -44,7 +44,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 	module_configname = "UDP_generic"
 	module_description = """Generic UDP module that can listen on any port.
 	This module lacks of any encryption or encoding, which comes to the interface
-	goes to the socket back and forth. Northing special.
+	goes to the socket back and forth. Nothing special.
 	"""
 
 	def __init__(self):
