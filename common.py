@@ -32,6 +32,7 @@ import socket
 import os
 import re
 import platform
+import pkgutil
 
 DATA_CHANNEL_BYTE	 = "\x00"
 CONTROL_CHANNEL_BYTE = "\x80"
@@ -73,7 +74,7 @@ def check_modules_installed():
 	reqs = ["pyroute2"]
 	allinstalled = True
 	for m in reqs:
-		if m not in sys.modules:
+		if not pkgutil.find_loader(m):
 			allinstalled = False
 			internal_print("The following python modules was not installed: {0}".format(m), -1)
 

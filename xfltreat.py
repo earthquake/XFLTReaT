@@ -31,8 +31,13 @@ import threading
 import errno
 import ConfigParser
 
+
 #local files
 import common
+# check requirements (python modules) whether or not installed
+if not common.check_modules_installed():
+	sys.exit(-1)
+
 from modules.Generic_module import Generic_module
 from modules.Stateful_module import Stateful_module
 from modules.Stateless_module import Stateless_module
@@ -110,11 +115,6 @@ Balazs Bucsay [[@xoreipeip]]
 				except:
 					common.internal_print("Invalid verbose value: {0}".format(arg), -1)
 					sys.exit(-1)
-
-
-		# check requirements (python modules) whether or not installed
-		if not common.check_modules_installed():
-			sys.exit(-1)
 
 		# set the servermode when it was not specified expicitly
 		if (not self.clientmode and not self.checkmode):
