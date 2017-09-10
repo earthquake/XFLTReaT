@@ -47,7 +47,7 @@ then set up iptables to do the NAT'ing for you:
 \# iptables -t nat -A POSTROUTING -s 10.9.0.0/24 -o eth0 -j MASQUERADE
 
 ### SCTP and NAT ###
-In case you would like to use SCTP on a NAT'd Linux environment, do not forget to insert the following kernel module
+In case you would like to use SCTP on a NAT'd Linux environment, do not forget to insert the following kernel module:  
 \# modprobe nf_conntrack_proto_sctp
 
 ### a few things to note ###
