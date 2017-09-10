@@ -146,7 +146,7 @@ class WebSocket(TCP_generic.TCP_generic):
 
 	def websocket_upgrade(self, server_socket):
 
-		request = self.WebSocket_proto.upgrade(base64.b64encode(os.urandom(6)), "xfltreat.info", "xfltreat.info", 13)
+		request = self.WebSocket_proto.upgrade(base64.b64encode(os.urandom(6)), self.config.get(self.get_module_configname(), "hostname"), self.config.get(self.get_module_configname(), "hostname"), 13)
 		server_socket.send(request)
 		
 		response = server_socket.recv(4096)
