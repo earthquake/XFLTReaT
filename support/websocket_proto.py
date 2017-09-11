@@ -37,7 +37,7 @@ class WebSocket_Proto():
 		return
 
 	def upgrade(self, url, hostname, origin, version):
-		upgrade_request  = "GET "+url+" HTTP/1.1\r\n"
+		upgrade_request  = "GET /"+url+" HTTP/1.1\r\n"
 		upgrade_request += "Host: "+hostname+"\r\n"
 		upgrade_request += "Upgrade: websocket\r\n"
 		upgrade_request += "Connection: Upgrade\r\n"

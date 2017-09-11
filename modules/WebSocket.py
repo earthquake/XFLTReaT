@@ -146,7 +146,7 @@ class WebSocket(TCP_generic.TCP_generic):
 
 	def websocket_upgrade(self, server_socket):
 
-		request = self.WebSocket_proto.upgrade(base64.b64encode(os.urandom(6)), self.config.get(self.get_module_configname(), "hostname"), self.config.get(self.get_module_configname(), "hostname"), 13)
+		request = self.WebSocket_proto.upgrade(base64.b64encode(os.urandom(9)).replace("/", "").replace("+", ""), self.config.get(self.get_module_configname(), "hostname"), self.config.get(self.get_module_configname(), "hostname"), 13)
 		server_socket.send(request)
 		
 		response = server_socket.recv(4096)
@@ -181,7 +181,7 @@ class WebSocket(TCP_generic.TCP_generic):
 
 			return False
 
-		if not common.is_hostname(self.config.get(self.get_module_configname(), "hostname")):
+		if not common.is_hostname(self.config.get(self.get_module_configname(), "hostname")) and not common.is_ipv4(self.config.get(self.get_module_configname(), "hostname")) and not common.is_ipv6(self.config.get(self.get_module_configname(), "hostname")):
 			common.internal_print("'hostname' should be a hostname '{0}' section".format(self.get_module_configname()), -1)
 
 			return False
