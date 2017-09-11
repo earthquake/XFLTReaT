@@ -218,7 +218,7 @@ class SOCKS(TCP_generic.TCP_generic):
 			server_socket.connect((self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
 			if self.socks_handshake(server_socket):
-				client_fake_thread = SOCKS_thread(0, 0, self.tunnel, None, server_socket, None, self.verbosity, self.config, self.get_module_name())
+				client_fake_thread = SOCKS_thread(0, 0, self.tunnel, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
 				client_fake_thread.do_auth()
 				client_fake_thread.communication(False)
 
@@ -249,7 +249,7 @@ class SOCKS(TCP_generic.TCP_generic):
 			server_socket.connect((self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
 			if self.socks_handshake(server_socket):
-				client_fake_thread = SOCKS_thread(0, 0, None, None, server_socket, None, self.verbosity, self.config, self.get_module_name())
+				client_fake_thread = SOCKS_thread(0, 0, None, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
 				client_fake_thread.do_check()
 				client_fake_thread.communication(True)
 
