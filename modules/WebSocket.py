@@ -150,7 +150,7 @@ class WebSocket(TCP_generic.TCP_generic):
 		server_socket.send(request)
 		
 		response = server_socket.recv(4096)
-		if response[9:12] != "101"
+		if response[9:12] != "101":
 			common.internal_print("Connection failed: {0}".format(response[0:response.find("\n")]), -1)
 
 			return False
