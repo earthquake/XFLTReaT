@@ -62,6 +62,8 @@ class ICMP(Stateless_module.Stateless_module):
 		self.ICMP_fake_serverport = int(random.random() * 65535)
 		self.ICMP_prefix = "XFL"
 		self.timeout = 2.0
+		self.TRACKING_THRESHOLD = 50
+		self.TRACKING_ADJUST = 20
 
 		return
 
@@ -217,6 +219,13 @@ class ICMP(Stateless_module.Stateless_module):
 								c = common.lookup_client_priv(self.clients, readytogo)
 
 								if c:
+									# if the differece between the received and set sequences too big
+									# some routers/firewalls just drop older sequences. If it gets 
+									# too big, we just drop the older ones and use the latest X packet
+									# this helps on stabality.
+									if (c.get_ICMP_received_sequence()-c.get_ICMP_sent_sequence()) >= self.TRACKING_THRESHOLD:
+										c.set_ICMP_sent_sequence(c.get_ICMP_received_sequence()-self.TRACKING_ADJUST)
+
 									identifier = c.get_ICMP_sent_identifier()
 									sequence = c.get_ICMP_sent_sequence()
 
