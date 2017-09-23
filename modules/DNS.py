@@ -67,7 +67,6 @@ class DNS(UDP_generic.UDP_generic):
 		self.zonefile = None
 		self.DNS_query_timeout = 1.0
 		self.select_timeout = 1.0
-		self.lost_expiry = 20
 		self.qpacket_number = 0
 
 		self.afragments = {}
@@ -90,31 +89,21 @@ class DNS(UDP_generic.UDP_generic):
 		self.direct_check = "XFLT>DIRECT"
 		self.direct_result = "XFLT>DIRECT_YEPP"
 
-		self.cmh_struct  = {
-			# num : [string to look for, function, server(1) or client(0), return on success, return on failure]
-			# return value meanings: True  - module continues
-			#						 False - module thread terminates
-			# in case of Stateless modules, the whole module terminates if the return value is False
-			0  : [common.CONTROL_CHECK, 		self.controlchannel.cmh_check_query, 1, True, True],
-			1  : [common.CONTROL_CHECK_RESULT, 	self.controlchannel.cmh_check_check, 0, True, False],
-			2  : [common.CONTROL_AUTH, 			self.controlchannel.cmh_auth, 1, True, True],
-			3  : [common.CONTROL_AUTH_OK, 		self.controlchannel.cmh_auth_ok, 0, True, False],
-			4  : [common.CONTROL_AUTH_NOTOK, 	self.controlchannel.cmh_auth_not_ok, 0, True, False],
-			5  : [common.CONTROL_LOGOFF, 		self.controlchannel.cmh_logoff, 1, True, False],
-			6  : [common.CONTROL_DUMMY_PACKET, 	self.controlchannel.cmh_dummy_packet, 1, True, True],
-			7  : [self.CONTROL_AUTOTUNE,		self.cmh_autotune, 1, True, True],
-			8  : [self.CONTROL_TUNEME,			self.cmh_tune, 1, True, True]
+		# adding two DNS specific control message handler
+		self.cmh_struct[len(self.cmh_struct)] = [self.CONTROL_AUTOTUNE,		self.cmh_autotune, 1, True, True]
+		self.cmh_struct[len(self.cmh_struct)] = [self.CONTROL_TUNEME,			self.cmh_tune, 1, True, True]
+
+		# list of encodings for the upstream
+		self.upload_encoding_list = {
+			0	:	encoding.Base32(),
+			1	: 	encoding.Base64_DNS()
 		}
 
+		# list of encodings for the downstream
 		self.download_encoding_list = {
 			0	:	encoding.Base32(),
 			1	: 	encoding.Base64_DNS(),
 			2	: 	encoding.id()
-		}
-
-		self.upload_encoding_list = {
-			0	:	encoding.Base32(),
-			1	: 	encoding.Base64_DNS()
 		}
 
 		# record list must be prioritized: 0 - best ; last - worse
@@ -124,6 +113,7 @@ class DNS(UDP_generic.UDP_generic):
 			2	: ["A", "CNAME", 510]
 		}
 
+		# creating auto tune prefix
 		self.autotune_match = encoding.Base32().encode(self.CONTROL_AUTOTUNE)[:-1]
 
 		return
@@ -139,8 +129,11 @@ class DNS(UDP_generic.UDP_generic):
 
 		return
 
+	# autotune control message handler
+	# this handler answers to the tune requests to find the best bandwidth
 	def cmh_autotune(self, module, message, additional_data, cm):
 		message = message[len(self.CONTROL_AUTOTUNE)+2:]
+		# get tune type, requested record type, length and encoding for crafting the answer
 		(query_type, RRtype, length, encode_class) = struct.unpack("<BHHH", message[0:7])
 		if self.DNS_proto.get_RR_type(RRtype)[0] == None:
 			return True
@@ -159,6 +152,8 @@ class DNS(UDP_generic.UDP_generic):
 		module.send(common.CONTROL_CHANNEL_BYTE, self.CONTROL_AUTOTUNE_CLIENT+message, additional_data)
 		return True
 
+	# tune control message handler
+	# client sets the record type and encodings by calling this
 	def cmh_tune(self, module, message, additional_data, cm):
 		c = additional_data[2]
 		(record_type, up_encoding, down_encoding, dl) = struct.unpack("<HHHH", message[len(self.CONTROL_TUNEME):])
@@ -175,8 +170,6 @@ class DNS(UDP_generic.UDP_generic):
 		return
 
 	def do_changesettings(self, additional_data):
-		#(best_upload_encoding, best_download_encoding, best_upload_length, best_download_length, best_download_record_type)
-		
 		message = struct.pack("<HHHH", self.settings[4], self.settings[0], self.settings[1], self.settings[3])
 		self.send(common.CONTROL_CHANNEL_BYTE, self.CONTROL_TUNEME+message, additional_data)
 
@@ -190,6 +183,12 @@ class DNS(UDP_generic.UDP_generic):
 
 		return
 
+	# function used for autotuning, crafting tune type requests, sending the 
+	# packets then checking the answer.
+	# return
+	# True: if the packet went thru and the answer is correct. Encoding, size
+	# 	were correct
+	# False: packet failed. Too big or crippled packet, wrong encoding etc.
 	def do_autotune_core(self, server_socket, tune_type, upload_length, download_length, upload_encoding, download_encoding, upload_record_type, download_record_type):
 		if download_record_type == "CNAME":
 			# A request for CNAME response
@@ -291,6 +290,20 @@ class DNS(UDP_generic.UDP_generic):
 
 		return True
 
+	# Finding the best packet type for maximum bandwith
+	# It does the following in this order:
+	# 1. Raw connection over udp/53, not over DNS. If this works, then no DNS
+	# 	is needed, udp/53 can be used without any overhead, just in raw.
+	# 2. Simple, short A record with CNAME response - this is just a test for 
+	#	DNS, if this fails then the DNS server is not working or XFL is stopped
+	# 3. upstream encoding test. Check with Base32, Base64 etc. Some servers 
+	#	are RFC compliant in this, and case insensitives.
+	# 4. Testing the maximum encoded upstream length. Some DNS servers does not
+	#	like 255 long DNS names.
+	# 5. Finding the best record type for downstream, which is NULL. This is in
+	#	reverse order. The best comes first. If one is found, that will be used
+	# 6. Looking for the best encoding for downstream.
+	# 7. Looking for the maximum downstream length.
 	def do_autotune(self, server_socket):
 		server_socket.settimeout(1)
 		
@@ -526,6 +539,7 @@ class DNS(UDP_generic.UDP_generic):
 
 		if self.serverorclient:
 			# server side
+			# answering all expired and unused queries
 			self.burn_unanswered_packets()
 
 			# creating packet and saving to the queue
@@ -697,7 +711,6 @@ class DNS(UDP_generic.UDP_generic):
 					return ("", None, 0, 0)
 
 				current_client.get_query_queue().put((int(time.time()), transaction_id, orig_question, addr))
-				queue_length = 0 # TODO Kell ez?
 
 				if len(edata) > len(self.autotune_match):
 					if edata[0:len(self.autotune_match)] == self.autotune_match:
@@ -776,7 +789,6 @@ class DNS(UDP_generic.UDP_generic):
 						raise socket.timeout
 					if not self.serverorclient:
 						if self.authenticated:
-							#if not self.request_resend():
 							self.do_dummy_packet()
 							common.internal_print("Keep alive sent", 0, self.verbosity, common.DEBUG)
 					continue
