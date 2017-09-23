@@ -58,11 +58,16 @@ class ICMP(Stateless_module.Stateless_module):
 		super(ICMP, self).__init__()
 		self.icmp = ICMP_Proto()
 		self.ICMP_sequence = 0
+		# identifier lottery
 		self.ICMP_identifier = int(random.random() * 65535)
+		# serverport lottery, not like it matters
 		self.ICMP_fake_serverport = int(random.random() * 65535)
+		# prefix to make it easier to detect xfl packets
 		self.ICMP_prefix = "XFL"
 		self.timeout = 2.0
+		# if the recv-sent>threshold:
 		self.TRACKING_THRESHOLD = 50
+		# then we cut back the difference with adjust:
 		self.TRACKING_ADJUST = 20
 
 		return
