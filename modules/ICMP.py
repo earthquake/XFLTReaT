@@ -132,7 +132,7 @@ class ICMP(Stateless_module.Stateless_module):
 
 	def do_dummy_packet(self, identifier, sequence):
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_DUMMY_PACKET, 
-			(self.server_tuple, identifier, sequence, 0)) #??
+			(self.server_tuple, identifier, sequence, 0))
 
 		return
 
@@ -156,8 +156,7 @@ class ICMP(Stateless_module.Stateless_module):
 
 		return self.comms_socket.sendto(
 			self.icmp.create_packet(self.ICMP_send, identifier, sequence, 
-			self.ICMP_prefix+struct.pack(">H", len(transformed_message))+transformed_message), 
-			addr)
+			self.ICMP_prefix+struct.pack(">H", len(transformed_message))+transformed_message), addr)
 
 	def recv(self):
 		# self.transform is missing, TODO
@@ -231,47 +230,52 @@ class ICMP(Stateless_module.Stateless_module):
 									if (c.get_ICMP_received_sequence()-c.get_ICMP_sent_sequence()) >= self.TRACKING_THRESHOLD:
 										c.set_ICMP_sent_sequence(c.get_ICMP_received_sequence()-self.TRACKING_ADJUST)
 
+									# get client related values: identifier and sequence number
 									identifier = c.get_ICMP_sent_identifier()
 									sequence = c.get_ICMP_sent_sequence()
 
+									# queueing every packet first
+									c.queue_put(readytogo)
+									# are there any packets to answer?
 									if (c.get_ICMP_received_sequence() - sequence) == 0:
-										c.queue_put(readytogo)
 										continue
 									else:
-										if c.queue_length():
-											c.queue_put(readytogo)
-											i = 0
-											if (c.get_ICMP_received_sequence() - sequence) < (c.queue_length()):
-												number_to_get = (c.get_ICMP_received_sequence() - sequence)
-											else:
-												number_to_get = c.queue_length()
-											for i in range(number_to_get - 1):
-												readytogo = c.queue_get()
-												self.send(common.DATA_CHANNEL_BYTE, readytogo,
-													((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port()), 
-													identifier, (sequence + i + 1), 0)) #??
+										# if there is less packet than that we have in the queue
+										# then we cap the outgoing packet number
+										if (c.get_ICMP_received_sequence() - sequence) < (c.queue_length()):
+											number_to_get = (c.get_ICMP_received_sequence() - sequence)
+										else:
+											# send all packets from the queue
+											number_to_get = c.queue_length()
+
+										request_num = 0
+										for i in range(0, number_to_get):
+											# get first packet
 											readytogo = c.queue_get()
-											sequence += i
-										
+											# is it he last one we are sending now?
+											if i == (number_to_get - 1):
+												# if the last one and there is more in the queue
+												# then we ask for dummy packets
+												request_num = c.queue_length()
+											# go packets go!
+											self.send(common.DATA_CHANNEL_BYTE, readytogo,
+												((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port()), 
+												identifier, sequence + i + 1, request_num))
 
-										sequence = (sequence + 1) % 65536
+										sequence = (sequence + i + 1) % 65536
 										c.set_ICMP_sent_sequence(sequence)
-										self.send(common.DATA_CHANNEL_BYTE, readytogo,
-											((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port()), 
-											identifier, sequence, c.queue_length())) #??
-
-
 								else:
+									# there is no client with that IP
 									common.internal_print("Client not found, strange?!", 0, self.verbosity, common.DEBUG)
 									continue
 
 							else:
 								if self.authenticated:
+									# whatever we have from the tunnel, just encapsulate it
+									# and send it out
 									self.ICMP_sequence = (self.ICMP_sequence + 1) % 65536
 									self.send(common.DATA_CHANNEL_BYTE, readytogo, 
 										(self.server_tuple, self.ICMP_identifier, self.ICMP_sequence, 0)) #??
-									sequence = self.ICMP_sequence # del this line
-									identifier = self.ICMP_identifier # del this line
 								else:
 									common.internal_print("Spoofed packets, strange?!", 0, self.verbosity, common.DEBUG)
 									continue
