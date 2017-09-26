@@ -40,9 +40,11 @@ class DNS_Client(client.Client):
 	def __init__(self):
 		super(DNS_Client, self).__init__()
 		self.userid = None
-		self.query_queue = DNS_Queue()
-		self.cache_queue = DNS_Queue()
-		self.answer_queue = Queue.Queue()
+		self.query_queue = DNS_Queue() # queue for queries < incoming
+		self.repeated_queue = DNS_Queue() # same as query_queue but a bit longer expiry for repeated questions
+		self.cache_queue = DNS_Queue() 
+		self.answer_queue = DNS_Queue() # queue for answers > outgoing
+		
 		self.apacket_number = 0
 		self.qfragments = {}
 		self.qlast_fragments = {}
@@ -64,6 +66,9 @@ class DNS_Client(client.Client):
 
 	def get_answer_queue(self):
 		return self.answer_queue
+
+	def get_repeated_queue(self):
+		return self.repeated_queue
 
 	def get_apacket_number(self):
 		return self.apacket_number
@@ -104,7 +109,14 @@ class DNS_Queue:
 	def __init__(self):
 		self.__item_pool = []
 
-	def is_item(self, item):
+	def is_item1(self, item):
+		for _item in self.__item_pool:
+			if _item[1] == item:
+				return True
+
+		return False
+
+	def is_item2(self, item):
 		for _item in self.__item_pool:
 			if _item[2] == item:
 				return True
@@ -119,9 +131,9 @@ class DNS_Queue:
 		return False
 	
 	def replace(self, what, to):
-		for _item in self.__item_pool:
-			if _item[2] == what:
-				_item = to
+		for i in range(len(self.__item_pool)):
+			if self.__item_pool[i][2] == what:
+				self.__item_pool[i] = to
 				return
 		return
 
@@ -163,6 +175,13 @@ class DNS_Queue:
 		self.__item_pool.remove(item)
 
 		return item
+
+	def get_last(self):
+		item = self.__item_pool[len(self.__item_pool)-1]
+		self.__item_pool.remove(item)
+
+		return item
+
 
 	def get_specific(self, pn, fn):
 		for item_ in self.__item_pool:
@@ -655,13 +674,13 @@ class DNS_Proto():
 
 	def build_answer(self, transaction_id, record, orig_question):
 		if record == None:
-			flag = 0x8403 # 1000 0100 0000 0011
+			flag = 0x8503 # 1000 0100 0000 0011
 			answer_num = 0
 			answers = ""
 			additional_record_num = 0
 			additional_records = ""
 		else:
-			flag = 0x8400 #	1000 0100 0000 0000
+			flag = 0x8500 #	1000 0100 0000 0000
 			RRtype = self.reverse_RR_type(record[0])
 			if RRtype[1] == None:
 				answer_num = 0
