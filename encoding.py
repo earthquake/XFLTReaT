@@ -47,12 +47,12 @@ class Base64_DNS():
 		return "Base64 DNS"
 
 	def encode(self, text):
-		return base64.b64encode(text).replace("=","").replace("/", "-")
+		return base64.b64encode(text).replace("=","").replace("/", "-").replace("+", "_")
 
 	def decode(self, text):
 		if len(text) % 4:
 			text += "="*(4-(len(text)%4))
-		return base64.b64decode(text.replace("-", "/"))
+		return base64.b64decode(text.replace("-", "/").replace("_", "+"))
 
 	def get_maximum_length(self, cap):
 		full = int(math.floor(cap / 4))*3
