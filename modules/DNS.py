@@ -65,7 +65,7 @@ class DNS(UDP_generic.UDP_generic):
 		
 		self.zone = []
 		self.zonefile = None
-		self.DNS_query_timeout = 2.0
+		self.DNS_query_timeout = 0.7
 		self.DNS_query_repeat_timeout = 10.0 # remove expired from repeated queue
 		self.select_timeout = 1.1
 		self.qpacket_number = 0
@@ -530,14 +530,20 @@ class DNS(UDP_generic.UDP_generic):
 
 		return
 
+	def fragmentnq(self, channel_byte, current_client, message):
+		fragment = self.DNS_common.create_fragment_header(channel_byte, current_client.get_apacket_number(), 0, 1)+message
+		current_client.get_answer_queue().put(fragment)
+		current_client.set_apacket_number((current_client.get_apacket_number() + 1) % 0x3FF)
+
+		return
+
 	def send(self, channel_type, message, additional_data):
 		addr = additional_data[0]
 		userid = additional_data[1]
 		current_client = additional_data[2]
 
-		fragment = ""
-
 		ql = "\x00" # queue length required bytes
+		fragment = ""
 		data = ""
 
 		if channel_type == common.CONTROL_CHANNEL_BYTE:
@@ -545,20 +551,48 @@ class DNS(UDP_generic.UDP_generic):
 		else:
 			channel_byte = common.DATA_CHANNEL_BYTE
 
-		i = 0
-
 		if self.serverorclient:
 			# server side
 			# answering all expired and unused queries
 			self.burn_unanswered_packets()
 
 			# creating packets and saving them to the queue
-			fragment = self.DNS_common.create_fragment_header(ord(channel_byte), current_client.get_apacket_number(), i, 1)+message
-			current_client.get_answer_queue().put(fragment)
-			current_client.set_apacket_number((current_client.get_apacket_number() + 1) % 0x3FF)
+			self.fragmentnq(ord(channel_byte), current_client, message)
 
 			RRtype = self.DNS_proto.reverse_RR_type(current_client.get_recordtype())
 			
+			aq_l = current_client.get_answer_queue().qsize()-1
+			qq_l = current_client.get_query_queue().qsize()
+			if (qq_l > 0) and common.is_control_channel(channel_type):
+				message = current_client.get_answer_queue().get_last()
+
+				if aq_l < 256:
+					ql = chr(aq_l)
+				else:
+					ql = chr(255)
+
+				encoding_class = current_client.get_download_encoding_class()
+				record_type = current_client.get_recordtype()
+
+				if len(additional_data) == 6:
+					encoding_needed = additional_data[3]
+					encoding_class = additional_data[4]
+					record_type = additional_data[5]
+					RRtype = self.DNS_proto.reverse_RR_type(record_type)
+
+				pre_message = encoding_class.encode(ql+message)
+
+				transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+self.transform(pre_message, 1))
+				(temp, transaction_id, orig_question, addr) = current_client.get_query_queue().get()
+				packet = self.DNS_proto.build_answer(transaction_id, [record_type, "", transformed_message], orig_question)
+
+				pn = self.DNS_common.get_packet_number_from_header(message[0:2])
+				fn = self.DNS_common.get_fragment_number_from_header(message[0:2])
+				common.internal_print("DNS packet sent???: {0} - packet number: {1} / fragment: {2}".format(len(message), pn, fn), 0, self.verbosity, common.DEBUG)
+				self.comms_socket.sendto(packet, addr)
+
+				return
+				
 			#check answer and query queues, send as many answers as many queries-1 we had
 			aq_l = current_client.get_answer_queue().qsize()
 			qq_l = current_client.get_query_queue().qsize()
@@ -569,6 +603,33 @@ class DNS(UDP_generic.UDP_generic):
 				return 0
 			# TODO control message priority?
 
+			top = 0
+			if (qq_l > 1) and (aq_l > 0):
+				if (qq_l-aq_l)<2:
+					top = qq_l - 1
+				else:
+					top = aq_l
+
+			for i in range(0, top):
+				message = current_client.get_answer_queue().get()
+				if i == (top - 1):
+					if (aq_l - i - 1) < 256:
+						ql = chr(aq_l - i -1)
+					else:
+						ql = chr(255)
+
+				pre_message = current_client.get_download_encoding_class().encode(ql+message)
+				transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+self.transform(pre_message, 1))
+
+				(temp, transaction_id, orig_question, addr) = current_client.get_query_queue().get()
+				packet = self.DNS_proto.build_answer(transaction_id, [current_client.get_recordtype(), "", transformed_message], orig_question)
+				self.comms_socket.sendto(packet, addr)
+
+				pn = self.DNS_common.get_packet_number_from_header(message[0:2])
+				fn = self.DNS_common.get_fragment_number_from_header(message[0:2])
+				common.internal_print("DNS packet sent!: {0} - packet number: {1} / fragment: {2}".format(len(message), pn, fn), 0, self.verbosity, common.DEBUG)
+
+			'''
 			while (qq_l > 2) and (aq_l > 1):
 				message = current_client.get_answer_queue().get()
 				aq_l -= 1
@@ -601,13 +662,6 @@ class DNS(UDP_generic.UDP_generic):
 			encoding_class = current_client.get_download_encoding_class()
 			record_type = current_client.get_recordtype()
 
-			# autotune hack
-			if len(additional_data) == 6:
-				encoding_needed = additional_data[3]
-				encoding_class = additional_data[4]
-				record_type = additional_data[5]
-				RRtype = self.DNS_proto.reverse_RR_type(record_type)
-
 			pre_message = encoding_class.encode(ql+message)
 			
 			transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+self.transform(pre_message, 1))
@@ -616,7 +670,9 @@ class DNS(UDP_generic.UDP_generic):
 
 			common.internal_print("DNS packet sent?: {0} - packet number: {1} / fragment: {2}".format(len(message), pn, fn), 0, self.verbosity, common.DEBUG)
 			self.comms_socket.sendto(packet, addr)
+			'''
 		else:
+			i = 0
 			# client side
 			while len(message) > self.qMTU:
 				fragment = ql+self.DNS_common.create_fragment_header(ord(channel_byte), self.qpacket_number, i, 0)+message[0:self.qMTU]
