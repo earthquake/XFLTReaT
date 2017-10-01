@@ -65,7 +65,7 @@ class DNS(UDP_generic.UDP_generic):
 		
 		self.zone = []
 		self.zonefile = None
-		self.DNS_query_timeout = 0.7
+		self.DNS_query_timeout = 1.2 # going more low than 1.0 could introduce problems ATM
 		self.DNS_query_repeat_timeout = 10.0 # remove expired from repeated queue
 		self.select_timeout = 1.1
 		self.qpacket_number = 0
@@ -97,14 +97,17 @@ class DNS(UDP_generic.UDP_generic):
 		# list of encodings for the upstream
 		self.upload_encoding_list = {
 			0	:	encoding.Base32(),
-			1	: 	encoding.Base64_DNS()
+			1	: 	encoding.Base64_DNS(),
+			2	:	encoding.Base91(),
+			3	:	encoding.Base128()
 		}
 
 		# list of encodings for the downstream
 		self.download_encoding_list = {
 			0	:	encoding.Base32(),
 			1	: 	encoding.Base64_DNS(),
-			2	: 	encoding.id()
+			2	:	encoding.Base128(),
+			3	: 	encoding.id()
 		}
 
 		# record list must be prioritized: 0 - best ; last - worse
@@ -283,7 +286,7 @@ class DNS(UDP_generic.UDP_generic):
 		if tune_type == 2:
 			message = message[len(self.CONTROL_AUTOTUNE_CLIENT)+3:]
 			if message != random_message:
-				common.internal_print("Request for '{0}' record with '{1}' encoding failed: message mismatch".format(download_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
+				common.internal_print("Request for '{0}' record with '{1}' encoding failed: message mismatch".format(download_record_type, self.download_encoding_list[download_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
 				return False
 
 		if tune_type == 3:
@@ -355,6 +358,7 @@ class DNS(UDP_generic.UDP_generic):
 		l = 0
 		m = 510
 
+		best_upload_length = 0
 		while True:
 			if l == (m - 1):
 				length = l
@@ -368,10 +372,14 @@ class DNS(UDP_generic.UDP_generic):
 
 			if self.do_autotune_core(server_socket, 1, upload_length, download_length, upload_encoding, download_encoding, upload_record_type, download_record_type):
 				l = upload_length
+				best_upload_length = upload_length
 			else:
 				m = upload_length
+
+			if upload_length < 20:
+				common.internal_print("Sorry mate, {0} bytes are just too low to do anything... Tunnelling will not be possible over this bandwidth".format(upload_length), -1)
+				return False
 		
-		best_upload_length = upload_length
 		common.internal_print("Record 'A' with '{0}' encoding can be used with maximum length of {1}".format(self.upload_encoding_list[best_upload_encoding].get_name(), best_upload_length), 1)
 
 		# record discovery
@@ -394,7 +402,7 @@ class DNS(UDP_generic.UDP_generic):
 		best_download_encoding = 0
 		for download_encoding in self.download_encoding_list:
 			# hacky again, but do not use CNAME with plaintext
-			if (download_encoding == 2) and (download_record_type == self.record_list[2][1]):
+			if (self.download_encoding_list[best_download_encoding].get_name() == "Plaintext") and (download_record_type == "CNAME"):
 				continue
 			upload_encoding = best_upload_encoding
 			upload_length = 50
@@ -428,10 +436,10 @@ class DNS(UDP_generic.UDP_generic):
 
 			if self.do_autotune_core(server_socket, 3, upload_length, download_length, upload_encoding, download_encoding, upload_record_type, download_record_type):
 				l = download_length
+				best_download_length = download_length
 			else:
 				m = download_length
 
-		best_download_length = download_length
 		common.internal_print("Record '{0}' will be used with encoding '{1}' and length {2} for downstream.".format(self.record_list[best_download_record_type][1], self.download_encoding_list[best_download_encoding].get_name(), best_download_length), 1)
 
 		# save config for maximum bandwidth
@@ -445,9 +453,9 @@ class DNS(UDP_generic.UDP_generic):
 	# whine after a while. It's better to send back answers with errors.
 	def burn_unanswered_packets(self):
 		for c in self.clients:
-			expired_num = c.get_query_queue().how_many_expired(int(time.time() - self.DNS_query_timeout))
+			expired_num = c.get_query_queue().how_many_expired(time.time() - self.DNS_query_timeout)
 			while expired_num:
-				(temp, transaction_id, orig_question, addr) = c.get_query_queue().get_an_expired(int(time.time() - self.DNS_query_timeout))
+				(temp, transaction_id, orig_question, addr) = c.get_query_queue().get_an_expired(time.time() - self.DNS_query_timeout)
 				expired_num -= 1
 				packet = self.DNS_proto.build_answer(transaction_id, None, orig_question)
 				self.comms_socket.sendto(packet, addr)
@@ -596,8 +604,9 @@ class DNS(UDP_generic.UDP_generic):
 			#check answer and query queues, send as many answers as many queries-1 we had
 			aq_l = current_client.get_answer_queue().qsize()
 			qq_l = current_client.get_query_queue().qsize()
-			# if it is a control message, we can burn the only one query in queue
-			if (qq_l <= 1) and not common.is_control_channel(channel_type):
+
+			# this must be data, if there is not more than one query cached, then we quit
+			if (qq_l <= 1):
 				# not enough queries, sorry
 				# one should be held back, for requesting more queries.
 				return 0
@@ -620,7 +629,6 @@ class DNS(UDP_generic.UDP_generic):
 
 				pre_message = current_client.get_download_encoding_class().encode(ql+message)
 				transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+self.transform(pre_message, 1))
-
 				(temp, transaction_id, orig_question, addr) = current_client.get_query_queue().get()
 				packet = self.DNS_proto.build_answer(transaction_id, [current_client.get_recordtype(), "", transformed_message], orig_question)
 				self.comms_socket.sendto(packet, addr)
@@ -628,49 +636,6 @@ class DNS(UDP_generic.UDP_generic):
 				pn = self.DNS_common.get_packet_number_from_header(message[0:2])
 				fn = self.DNS_common.get_fragment_number_from_header(message[0:2])
 				common.internal_print("DNS packet sent!: {0} - packet number: {1} / fragment: {2}".format(len(message), pn, fn), 0, self.verbosity, common.DEBUG)
-
-			'''
-			while (qq_l > 2) and (aq_l > 1):
-				message = current_client.get_answer_queue().get()
-				aq_l -= 1
-				qq_l -= 1
-
-				pre_message = current_client.get_download_encoding_class().encode(ql+message)
-
-				transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+self.transform(pre_message, 1))
-
-				(temp, transaction_id, orig_question, addr) = current_client.get_query_queue().get()
-				packet = self.DNS_proto.build_answer(transaction_id, [current_client.get_recordtype(), "", transformed_message], orig_question)
-				self.comms_socket.sendto(packet, addr)
-
-				pn = self.DNS_common.get_packet_number_from_header(message[0:2])
-				fn = self.DNS_common.get_fragment_number_from_header(message[0:2])
-				common.internal_print("DNS packet sent!: {0} - packet number: {1} / fragment: {2}".format(len(message), pn, fn), 0, self.verbosity, common.DEBUG)
-
-			# last message to send
-			message = current_client.get_answer_queue().get()
-			aq_l = current_client.get_answer_queue().qsize()
-
-			pn = self.DNS_common.get_packet_number_from_header(message[0:2])
-			fn = self.DNS_common.get_fragment_number_from_header(message[0:2])
-
-			if aq_l < 256:
-				ql = chr(aq_l)
-			else:
-				ql = chr(255)
-
-			encoding_class = current_client.get_download_encoding_class()
-			record_type = current_client.get_recordtype()
-
-			pre_message = encoding_class.encode(ql+message)
-			
-			transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+self.transform(pre_message, 1))
-			(temp, transaction_id, orig_question, addr) = current_client.get_query_queue().get()
-			packet = self.DNS_proto.build_answer(transaction_id, [record_type, "", transformed_message], orig_question)
-
-			common.internal_print("DNS packet sent?: {0} - packet number: {1} / fragment: {2}".format(len(message), pn, fn), 0, self.verbosity, common.DEBUG)
-			self.comms_socket.sendto(packet, addr)
-			'''
 		else:
 			i = 0
 			# client side
@@ -783,7 +748,7 @@ class DNS(UDP_generic.UDP_generic):
 				# client/server is impatient and thinks that the packet was 
 				# lost.
 				if current_client.get_query_queue().is_item2(orig_question):
-					current_client.get_query_queue().replace(orig_question, (int(time.time()), transaction_id, orig_question, addr))
+					current_client.get_query_queue().replace(orig_question, (time.time(), transaction_id, orig_question, addr))
 
 					return ("", None, 0, 0)
 
@@ -794,14 +759,14 @@ class DNS(UDP_generic.UDP_generic):
 				# already answered (TOCTOU maybe?), so the packet would be 
 				# duplicated. This was the reason behind an early bug with 
 				# ICMP dups.
-				current_client.get_repeated_queue().remove_expired(int(time.time())-self.DNS_query_repeat_timeout)
+				current_client.get_repeated_queue().remove_expired(time.time()-self.DNS_query_repeat_timeout)
 				if not current_client.get_repeated_queue().is_item1(orig_question):
-					current_client.get_repeated_queue().put((int(time.time()), orig_question))
+					current_client.get_repeated_queue().put((time.time(), orig_question))
 				else:
 					return ("", None, 0, 0)
 
 				# if query details are new, just put them into the queue
-				current_client.get_query_queue().put((int(time.time()), transaction_id, orig_question, addr))
+				current_client.get_query_queue().put((time.time(), transaction_id, orig_question, addr))
 
 				# dummy check for prefix match
 				# if the prefix matches, then this is an autotune test request
@@ -812,7 +777,7 @@ class DNS(UDP_generic.UDP_generic):
 						encoding_i = struct.unpack("<H", prefix[-2:])[0]
 						postfix = self.upload_encoding_list[encoding_i].decode(edata[len(self.autotune_match)+4:])
 
-						return common.CONTROL_CHANNEL_BYTE+prefix+postfix, addr, 0, 0
+						return (common.CONTROL_CHANNEL_BYTE+prefix+postfix, addr, 0, 0)
 
 				try:
 					# trying to decode with the client related encoding
