@@ -301,23 +301,44 @@ class Base128():
 	def encodeblock(self, block):
 		blen = len(block)
 		out = ""
-		if blen < 7:
-			block += "\x00"
-			blen += 1
 
 		out += self.base128_alphabet[ord(block[0:1]) >> 1]
-		out += self.base128_alphabet[(((ord(block[0:1]) & 0x01) << 6) & 0xFF) | ((ord(block[1:2]) >> 2) & 0xFF)]
+		if blen > 1:
+			out += self.base128_alphabet[(((ord(block[0:1]) & 0x01) << 6) & 0xFF) | ((ord(block[1:2]) >> 2) & 0xFF)]
+		else:
+			out += self.base128_alphabet[(((ord(block[0:1]) & 0x01) << 6) & 0xFF)]
+			return out
+
 		if blen > 2:
 			out += self.base128_alphabet[(((ord(block[1:2]) & 0x03) << 5) & 0xFF) | ((ord(block[2:3]) >> 3) & 0xFF)]
+		else:
+			out += self.base128_alphabet[(((ord(block[1:2]) & 0x03) << 5) & 0xFF)]
+			return out
+
 		if blen > 3:
 			out += self.base128_alphabet[(((ord(block[2:3]) & 0x07) << 4) & 0xFF) | ((ord(block[3:4]) >> 4) & 0xFF)]
+		else:
+			out += self.base128_alphabet[(((ord(block[2:3]) & 0x07) << 4) & 0xFF)]
+			return out
+
 		if blen > 4:
 			out += self.base128_alphabet[(((ord(block[3:4]) & 0x0F) << 3) & 0xFF) | ((ord(block[4:5]) >> 5) & 0xFF)]
+		else:
+			out += self.base128_alphabet[(((ord(block[3:4]) & 0x0F) << 3) & 0xFF)]
+			return out
+
 		if blen > 5:
 			out += self.base128_alphabet[(((ord(block[4:5]) & 0x1F) << 2) & 0xFF) | ((ord(block[5:6]) >> 6) & 0xFF)]
+		else:
+			out += self.base128_alphabet[(((ord(block[4:5]) & 0x1F) << 2) & 0xFF)]
+			return out
+
 		if blen > 6:
 			out += self.base128_alphabet[(((ord(block[5:6]) & 0x3F) << 1) & 0xFF) | ((ord(block[6:7]) >> 7) & 0xFF)]
 			out += self.base128_alphabet[ord(block[6:7]) & 0x7F]
+		else:
+			out += self.base128_alphabet[(((ord(block[5:6]) & 0x3F) << 1) & 0xFF)]
+			return out
 
 		return out
 
@@ -327,7 +348,6 @@ class Base128():
 
 		if blen < 8:
 			block += "a"
-			blen += 1
 
 		out += chr(((self.base128_revalphabet[ord(block[0:1])] << 1) & 0xFF) | ((self.base128_revalphabet[ord(block[1:2])] >> 6) & 0xFF))
 		if blen > 2:
@@ -345,14 +365,11 @@ class Base128():
 
 		return out
 
-
 	def encode(self, text):
 		result = ""
 		for i in range(0,int(math.ceil(float(len(text)) / 7.0))):
 			result += self.encodeblock(text[i*7:(i+1)*7])
 
-		if result[-1:] == "a":
-			result = result[:-1]
 		return result
 
 	def decode(self, text):
