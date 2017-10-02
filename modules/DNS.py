@@ -280,7 +280,7 @@ class DNS(UDP_generic.UDP_generic):
 
 		if tune_type == 1:
 			if crc != message[len(self.CONTROL_AUTOTUNE_CLIENT)+3:]:
-				common.internal_print("Request for '{0}'' record with '{1}' encoding failed: integrity error".format("A", self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
+				common.internal_print("Request for '{0}' record with '{1}' encoding failed: integrity error".format("A", self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
 				return False
 
 		if tune_type == 2:
