@@ -65,7 +65,7 @@ class DNS(UDP_generic.UDP_generic):
 		
 		self.zone = []
 		self.zonefile = None
-		self.DNS_query_timeout = 1.2 # going more low than 1.0 could introduce problems ATM
+		self.DNS_query_timeout = 2.05 # going more low than 1.0 could introduce problems ATM
 		self.DNS_query_repeat_timeout = 10.0 # remove expired from repeated queue
 		self.select_timeout = 1.1
 		self.qpacket_number = 0
@@ -162,7 +162,7 @@ class DNS(UDP_generic.UDP_generic):
 	def cmh_tune(self, module, message, additional_data, cm):
 		c = additional_data[2]
 		if c.get_query_queue().qsize():
-			(temp, transaction_id, orig_question, addr) = c.get_query_queue().get()
+			(temp, transaction_id, orig_question, addr, requery_count) = c.get_query_queue().get()
 			packet = self.DNS_proto.build_answer(transaction_id, None, orig_question)
 			self.comms_socket.sendto(packet, addr)
 		(record_type, up_encoding, down_encoding, dl) = struct.unpack("<HHHH", message[len(self.CONTROL_TUNEME):])
@@ -455,7 +455,7 @@ class DNS(UDP_generic.UDP_generic):
 		for c in self.clients:
 			expired_num = c.get_query_queue().how_many_expired(time.time() - self.DNS_query_timeout)
 			while expired_num:
-				(temp, transaction_id, orig_question, addr) = c.get_query_queue().get_an_expired(time.time() - self.DNS_query_timeout)
+				(temp, transaction_id, orig_question, addr, requery_count) = c.get_query_queue().get_an_expired(time.time() - self.DNS_query_timeout)
 				expired_num -= 1
 				packet = self.DNS_proto.build_answer(transaction_id, None, orig_question)
 				self.comms_socket.sendto(packet, addr)
@@ -591,7 +591,7 @@ class DNS(UDP_generic.UDP_generic):
 				pre_message = encoding_class.encode(ql+message)
 
 				transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+self.transform(pre_message, 1))
-				(temp, transaction_id, orig_question, addr) = current_client.get_query_queue().get()
+				(temp, transaction_id, orig_question, addr, requery_count) = current_client.get_query_queue().get()
 				packet = self.DNS_proto.build_answer(transaction_id, [record_type, "", transformed_message], orig_question)
 
 				pn = self.DNS_common.get_packet_number_from_header(message[0:2])
@@ -629,7 +629,7 @@ class DNS(UDP_generic.UDP_generic):
 
 				pre_message = current_client.get_download_encoding_class().encode(ql+message)
 				transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+self.transform(pre_message, 1))
-				(temp, transaction_id, orig_question, addr) = current_client.get_query_queue().get()
+				(temp, transaction_id, orig_question, addr, requery_count) = current_client.get_query_queue().get()
 				packet = self.DNS_proto.build_answer(transaction_id, [current_client.get_recordtype(), "", transformed_message], orig_question)
 				self.comms_socket.sendto(packet, addr)
 
@@ -715,9 +715,6 @@ class DNS(UDP_generic.UDP_generic):
 
 		if self.serverorclient:
 			#server side
-			# burn packets even when we read, make sure nothing useless staying there
-			self.burn_unanswered_packets()
-
 			# can we answer from the zonefile?
 			record = self.DNS_proto.get_record(short_hostname, qtype, self.zone)
 			if record:
@@ -748,10 +745,14 @@ class DNS(UDP_generic.UDP_generic):
 				# client/server is impatient and thinks that the packet was 
 				# lost.
 				if current_client.get_query_queue().is_item2(orig_question):
-					current_client.get_query_queue().replace(orig_question, (time.time(), transaction_id, orig_question, addr))
+					current_client.get_query_queue().replace_with_increase(orig_question, (time.time(), transaction_id, orig_question, addr, 0))
+					# burn packets even when we read, make sure nothing useless staying there
+					self.burn_unanswered_packets()
 
 					return ("", None, 0, 0)
 
+				# burn packets even when we read, make sure nothing useless staying there
+				self.burn_unanswered_packets()
 				# Saving the query's original question to the repeated_queue. 
 				# If the same request shows up again, we just ignore it.
 				# This is different than the query_queue, because there are 
@@ -766,7 +767,7 @@ class DNS(UDP_generic.UDP_generic):
 					return ("", None, 0, 0)
 
 				# if query details are new, just put them into the queue
-				current_client.get_query_queue().put((time.time(), transaction_id, orig_question, addr))
+				current_client.get_query_queue().put((time.time(), transaction_id, orig_question, addr, 0))
 
 				# dummy check for prefix match
 				# if the prefix matches, then this is an autotune test request

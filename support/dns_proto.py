@@ -137,6 +137,14 @@ class DNS_Queue:
 				return
 		return
 
+	def replace_with_increase(self, what, to):
+		for i in range(len(self.__item_pool)):
+			if self.__item_pool[i][2] == what:
+				to = to[0:4] + (self.__item_pool[i][4] + 1,)
+				self.__item_pool[i] = to
+				return
+		return
+
 	def qsize(self):
 
 		return len(self.__item_pool)
@@ -145,14 +153,16 @@ class DNS_Queue:
 	def how_many_expired(self, expire):
 		expired = 0
 		for _item in self.__item_pool:
-			if _item[0] < expire:
+			#if (_item[0] < expire) or (_item[4] == 2):
+			if (_item[4] == 2):
 				expired += 1
 
 		return expired
 
 	def get_an_expired(self, expire):
 		for _item in self.__item_pool:
-			if _item[0] < expire:
+			#if (_item[0] < expire) or (_item[4] == 2):
+			if (_item[4] == 2):
 				self.__item_pool.remove(_item)
 				return _item
 
