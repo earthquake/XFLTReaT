@@ -50,6 +50,9 @@ then set up iptables to do the NAT'ing for you:
 In case you would like to use SCTP on a NAT'd Linux environment, do not forget to insert the following kernel module:  
 \# modprobe nf_conntrack_proto_sctp
 
+For Ubuntu/Debian the following package might needed:
+* libsctp-dev
+
 ### a few things to note ###
 * python 2.7
 * Linux only
