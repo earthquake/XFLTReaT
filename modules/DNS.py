@@ -112,9 +112,9 @@ class DNS(UDP_generic.UDP_generic):
 
 		# record list must be prioritized: 0 - best ; last - worse
 		self.record_list = {
-			0	: ["A", "NULL", 1600],		# best option
-			1	: ["A", "PRIVATE", 1600],	# second best option
-			2	: ["A", "CNAME", 510]
+#			0	: ["NULL", 1600],		# best option
+#			1	: ["PRIVATE", 1600],	# second best option
+			0	: ["CNAME", 510]
 		}
 
 		# creating auto tune prefix
@@ -159,6 +159,7 @@ class DNS(UDP_generic.UDP_generic):
 
 	# tune control message handler
 	# client sets the record type and encodings by calling this
+	# server side
 	def cmh_tune(self, module, message, additional_data, cm):
 		c = additional_data[2]
 		if c.get_query_queue().qsize():
@@ -166,23 +167,25 @@ class DNS(UDP_generic.UDP_generic):
 			packet = self.DNS_proto.build_answer(transaction_id, None, orig_question)
 			self.comms_socket.sendto(packet, addr)
 		(record_type, up_encoding, down_encoding, dl) = struct.unpack("<HHHH", message[len(self.CONTROL_TUNEME):])
-		c.set_recordtype(self.record_list[record_type][1])
+		c.set_recordtype(self.record_list[record_type][0])
 		c.set_upload_encoding_class(self.upload_encoding_list[up_encoding])
 		c.set_download_encoding_class(self.download_encoding_list[down_encoding])
 
 		return True
 
+	# client_side
 	def auth_ok_setup(self, additional_data):
 		self.userid = additional_data[1]
 		if self.settings:
 			self.do_changesettings(additional_data)
 		return
 
+	# client side
 	def do_changesettings(self, additional_data):
 		message = struct.pack("<HHHH", self.settings[4], self.settings[0], self.settings[1], self.settings[3])
 		self.send(common.CONTROL_CHANNEL_BYTE, self.CONTROL_TUNEME+message, additional_data)
 
-		self.recordtype = self.record_list[self.settings[4]][1]
+		self.recordtype = self.settings[5]
 		self.RRtype_num = self.DNS_proto.reverse_RR_type_num(self.recordtype)
 		self.upload_encoding_class = self.upload_encoding_list[self.settings[0]]
 		self.download_encoding_class = self.download_encoding_list[self.settings[1]]
@@ -200,8 +203,8 @@ class DNS(UDP_generic.UDP_generic):
 	# False: packet failed. Too big or crippled packet, wrong encoding etc.
 	def do_autotune_core(self, server_socket, tune_type, upload_length, download_length, upload_encoding, download_encoding, upload_record_type, download_record_type):
 		if download_record_type == "CNAME":
-			# A request for CNAME response
-			download_RRtype_num = self.DNS_proto.reverse_RR_type_num("A")
+			# A or CNAME request for CNAME response
+			download_RRtype_num = self.DNS_proto.reverse_RR_type_num(upload_record_type)
 		else:
 			# X request for X response
 			download_RRtype_num = self.DNS_proto.reverse_RR_type_num(download_record_type)
@@ -231,7 +234,8 @@ class DNS(UDP_generic.UDP_generic):
 
 		# 2 - content check for encoding
 		if tune_type == 2:
-			random_message = ''.join(random.choice(''.join(chr(x) for x in range(0,255))) for _ in range(upload_length))
+			# BIND9 fails to forward response if: Plaintext + pre+postfixed by "."
+			random_message = "."+''.join(random.choice(''.join(chr(x) for x in range(0,255))) for _ in range(upload_length-2))+"."
 			message = prefix+self.upload_encoding_list[upload_encoding].encode(second_prefix+random_message)
 			payload = self.DNS_proto.reverse_RR_type(upload_record_type)[2](self.DNS_common.get_character_from_userid(0)+message)
 
@@ -280,7 +284,7 @@ class DNS(UDP_generic.UDP_generic):
 
 		if tune_type == 1:
 			if crc != message[len(self.CONTROL_AUTOTUNE_CLIENT)+3:]:
-				common.internal_print("Request for '{0}' record with '{1}' encoding failed: integrity error".format("A", self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
+				common.internal_print("Request for '{0}' record with '{1}' encoding failed: integrity error".format(upload_record_type, self.upload_encoding_list[upload_encoding].get_name()), -1, self.verbosity, common.VERBOSE)
 				return False
 
 		if tune_type == 2:
@@ -327,7 +331,7 @@ class DNS(UDP_generic.UDP_generic):
 		
 		server_socket.settimeout(2)
 
-		# check A record
+		# check A+CNAME record
 		upload_length = 0
 		download_length = 30
 		upload_encoding = 0
@@ -336,8 +340,21 @@ class DNS(UDP_generic.UDP_generic):
 		download_record_type = "CNAME"
 		if self.do_autotune_core(server_socket, 0, upload_length, download_length, upload_encoding, download_encoding, upload_record_type, download_record_type):
 			common.internal_print("A record can be used for upstream.", 1)
+			A_CNAME = True
+			best_upload_record_type = "A"
 		else:
-			return False
+			# check CNAME+CNAME record
+			upload_length = 0
+			download_length = 30
+			upload_encoding = 0
+			download_encoding = 0
+			upload_record_type = "CNAME"
+			download_record_type = "CNAME"
+			if self.do_autotune_core(server_socket, 0, upload_length, download_length, upload_encoding, download_encoding, upload_record_type, download_record_type):
+				common.internal_print("CNAME record can be used for upstream.", 1)
+				best_upload_record_type = "CNAME"
+			else:
+				return False
 
 		# A record encoding test
 		best_upload_encoding = 0
@@ -345,7 +362,7 @@ class DNS(UDP_generic.UDP_generic):
 			download_encoding = 0
 			upload_length = 50
 			download_length = 10
-			upload_record_type = "A"
+			upload_record_type = best_upload_record_type
 			download_record_type = "CNAME"
 			if self.do_autotune_core(server_socket, 1, upload_length, download_length, upload_encoding, download_encoding, upload_record_type, download_record_type):
 				best_upload_encoding = upload_encoding
@@ -367,7 +384,7 @@ class DNS(UDP_generic.UDP_generic):
 			download_encoding = 0
 			upload_length = (l + m)/2
 			download_length = 0
-			upload_record_type = "A"
+			upload_record_type = best_upload_record_type
 			download_record_type = "CNAME"
 
 			if self.do_autotune_core(server_socket, 1, upload_length, download_length, upload_encoding, download_encoding, upload_record_type, download_record_type):
@@ -389,14 +406,14 @@ class DNS(UDP_generic.UDP_generic):
 			download_encoding = 0
 			upload_length = 0
 			download_length = 50
-			upload_record_type = self.record_list[r][0]
-			download_record_type = self.record_list[r][1]
+			upload_record_type = best_upload_record_type
+			download_record_type = self.record_list[r][0]
 			
 			if self.do_autotune_core(server_socket, 0, upload_length, download_length, upload_encoding, download_encoding, upload_record_type, download_record_type):
 				best_download_record_type = r
 				break
 
-		common.internal_print("Record '{0}' can be used for downstream.".format(self.record_list[best_download_record_type][1]), 1)
+		common.internal_print("Record '{0}' can be used for downstream.".format(self.record_list[best_download_record_type][0]), 1)
 
 		# get best encoding for the best record type
 		best_download_encoding = 0
@@ -407,17 +424,17 @@ class DNS(UDP_generic.UDP_generic):
 			upload_encoding = best_upload_encoding
 			upload_length = 50
 			download_length = 50
-			upload_record_type = "A"
-			download_record_type = self.record_list[best_download_record_type][1]
+			upload_record_type = best_upload_record_type
+			download_record_type = self.record_list[best_download_record_type][0]
 			if self.do_autotune_core(server_socket, 2, upload_length, download_length, upload_encoding, download_encoding, upload_record_type, download_record_type):
 				best_download_encoding = download_encoding
 
-		common.internal_print("Record '{0}' can be used with encoding '{1}' for downstream.".format(self.record_list[best_download_record_type][1], self.download_encoding_list[best_download_encoding].get_name()), 1)
+		common.internal_print("Record '{0}' can be used with encoding '{1}' for downstream.".format(self.record_list[best_download_record_type][0], self.download_encoding_list[best_download_encoding].get_name()), 1)
 
 
 		# get max througput
 		l = 0
-		m = self.record_list[best_download_record_type][2]
+		m = self.record_list[best_download_record_type][1]
 		while True:
 			if l == m - 1:
 				download_length = l
@@ -427,8 +444,8 @@ class DNS(UDP_generic.UDP_generic):
 			upload_encoding = best_upload_encoding
 			download_encoding = best_download_encoding
 			upload_length = best_upload_length
-			upload_record_type = "A"
-			download_record_type = self.record_list[best_download_record_type][1]
+			upload_record_type = best_upload_record_type
+			download_record_type = self.record_list[best_download_record_type][0]
 			
 			if download_length < 20:
 				common.internal_print("Sorry mate, {0} bytes are just too low to do anything... Tunnelling will not be possible over this bandwidth".format(download_length), -1)
@@ -440,10 +457,10 @@ class DNS(UDP_generic.UDP_generic):
 			else:
 				m = download_length
 
-		common.internal_print("Record '{0}' will be used with encoding '{1}' and length {2} for downstream.".format(self.record_list[best_download_record_type][1], self.download_encoding_list[best_download_encoding].get_name(), best_download_length), 1)
+		common.internal_print("Record '{0}' will be used with encoding '{1}' and length {2} for downstream.".format(self.record_list[best_download_record_type][0], self.download_encoding_list[best_download_encoding].get_name(), best_download_length), 1)
 
 		# save config for maximum bandwidth
-		self.settings = (best_upload_encoding, best_download_encoding, best_upload_length, best_download_length, best_download_record_type)
+		self.settings = (best_upload_encoding, best_download_encoding, best_upload_length, best_download_length, best_download_record_type, best_upload_record_type)
 
 		server_socket.settimeout(0)
 
@@ -847,7 +864,7 @@ class DNS(UDP_generic.UDP_generic):
 			try:
 				readable, writable, exceptional = select.select(self.rlist, wlist, xlist, self.select_timeout)
 			except select.error, e:
-				print error
+				print e
 				break
 
 			try:
