@@ -138,7 +138,11 @@ class Interface():
 		self.ip.route('add', gateway=ip, dst="0.0.0.0")
 		if not found:
 			# remote server route was not in the table, adding to it
-			self.ip.route('add', gateway=self.orig_default_gw, dst=serverip, mask=32)
+			try:
+				self.ip.route('add', gateway=self.orig_default_gw, dst=serverip, mask=32)
+			except:
+				common.internal_print("Error: Something is not quite right with your route table. Please check.", -1)
+				sys.exit(-1)
 		
 		return
 
