@@ -28,7 +28,6 @@ if "SCTP_generic.py" in sys.argv[0]:
 	sys.exit(-1)
 
 import socket
-from sctp import *
 import time
 import select
 import os
@@ -42,6 +41,7 @@ import common
 
 class SCTP_generic_thread(Stateful_module.Stateful_thread):
 	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name):
+
 		super(SCTP_generic_thread, self).__init__()
 		threading.Thread.__init__(self)
 		self._stop = False
@@ -215,7 +215,6 @@ class SCTP_generic_thread(Stateful_module.Stateful_thread):
 		return True
 
 class SCTP_generic(Stateful_module.Stateful_module):
-
 	module_name = "SCTP generic"
 	module_configname = "SCTP_generic"
 	module_description = """Generic SCTP module that can listen on any port.
@@ -227,6 +226,10 @@ class SCTP_generic(Stateful_module.Stateful_module):
 	def __init__(self):
 		super(SCTP_generic, self).__init__()
 		self.server_socket = None
+
+		# bit hacky, but it needs to be loaded somewhere.
+		if self.os_check():
+			import sctp
 
 		return
 
