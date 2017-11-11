@@ -52,6 +52,7 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 		proxies.
 		This module was tested with Squid3, default config.
 		"""
+	module_os_support = common.OS_LINUX
 
 	def http_connect_request(self, server_socket):
 		if self.config.has_option("Global", "remoteserverhost"):
@@ -107,8 +108,6 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 
 	def connect(self):
 		try:
-			if not self.sanity_check():
-				return
 			common.internal_print("Starting client: {0} ({1}:{2})".format(self.get_module_name(), self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
 			client_fake_thread = None
@@ -141,8 +140,6 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 
 	def check(self):
 		try:
-			if not self.sanity_check():
-				return
 			common.internal_print("Checking module on server: {0} ({1}:{2})".format(self.get_module_name(), self.config.get(self.get_module_configname(), "proxyip"), self.config.get(self.get_module_configname(), "proxyport")))
 			
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

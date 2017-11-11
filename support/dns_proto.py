@@ -265,7 +265,7 @@ class DNS_common():
 	# get default nameserver to know where to send packets
 	# config file can override this.
 	def get_nameserver(self):
-		if common.get_os_type() == "Linux":
+		if common.get_os_type() == common.OS_LINUX:
 			f = open("/etc/resolv.conf", "r")
 			content = f.read()
 			f.close()

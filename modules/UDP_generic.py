@@ -46,6 +46,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 	This module lacks of any encryption or encoding, which comes to the interface
 	goes to the socket back and forth. Nothing special.
 	"""
+	module_os_support = common.OS_LINUX
 
 	def __init__(self):
 		super(UDP_generic, self).__init__()
@@ -205,8 +206,6 @@ class UDP_generic(Stateless_module.Stateless_module):
 
 	def serve(self):
 		server_socket = None
-		if not self.sanity_check():
-			return 
 		try:
 			common.internal_print("Starting module: {0} on {1}:{2}".format(self.get_module_name(), self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
 		
@@ -231,8 +230,6 @@ class UDP_generic(Stateless_module.Stateless_module):
 		return
 
 	def connect(self):
-		if not self.sanity_check():
-			return 
 		try:
 			common.internal_print("Starting client: {0}".format(self.get_module_name()))
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -257,8 +254,6 @@ class UDP_generic(Stateless_module.Stateless_module):
 		return
 
 	def check(self):
-		if not self.sanity_check():
-			return 
 		try:
 			common.internal_print("Checking module on server: {0}".format(self.get_module_name()))
 

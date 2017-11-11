@@ -37,13 +37,22 @@ import pkgutil
 DATA_CHANNEL_BYTE	 = "\x00"
 CONTROL_CHANNEL_BYTE = "\x80"
 
-CONTROL_CHECK   		 = "XFLT>CHECK!"
-CONTROL_CHECK_RESULT 	 = "XFLT>CHECK_RESULT"
-CONTROL_AUTH    		 = "XFLT>AUTH!"
-CONTROL_AUTH_OK 		 = "XFLT>AUTH_OK"
-CONTROL_AUTH_NOTOK 		 = "XFLT>AUTH_NOTOK"
-CONTROL_LOGOFF 			 = "XFLT>LOGOFF!"
-CONTROL_DUMMY_PACKET	 = "XFLT>DUMMY_PACKET"
+CONTROL_CHECK 			= "XFLT>CHECK!"
+CONTROL_CHECK_RESULT 	= "XFLT>CHECK_RESULT"
+CONTROL_AUTH 			= "XFLT>AUTH!"
+CONTROL_AUTH_OK 		= "XFLT>AUTH_OK"
+CONTROL_AUTH_NOTOK 		= "XFLT>AUTH_NOTOK"
+CONTROL_LOGOFF 			= "XFLT>LOGOFF!"
+CONTROL_DUMMY_PACKET 	= "XFLT>DUMMY_PACKET"
+
+# Multi Operating System support values
+OS_UNKNOWN	= 0
+OS_LINUX 	= 1
+OS_MACOSX	= 2
+OS_WINDOWS	= 4
+OS_FREEBSD	= 8
+OS_OPENBSD	= 16
+OS_WHATNOT	= 32
 
 # print severity levels:
 # 	0	always
@@ -83,12 +92,26 @@ def check_modules_installed():
 
 # get os type. No need to import 'platform' in every module this way.
 def get_os_type():
+	if platform.system() == "Linux":
+		return OS_LINUX
 
-	return platform.system()
+	if platform.system() == "Darwin":
+		return OS_MACOSX
+
+	if platform.system() == "Windows":
+		return OS_WINDOWS
+
+	if platform.system() == "FreeBSD":
+		return OS_FREEBSD
+
+	if platform.system() == "OpenBSD":
+		return OS_OPENBSD
+
+	return OS_UNKNOWN
 
 # check if the forwarding was set properly.
 def check_router_settings(config):
-	if platform.system() == "Linux":
+	if get_os_type == OS_LINUX:
 		if open('/proc/sys/net/ipv4/ip_forward','r').read()[0:1] == "0":
 			internal_print("The IP forwarding is not set.", -1)
 			internal_print("Please use the following two commands to set it properly (root needed):\n#\tsysctl -w net.ipv4.ip_forward=1\n#\tiptables -t nat -A POSTROUTING -s {0}/{1} -o [YOUR_INTERFACE/e.g./eth0] -j MASQUERADE\n".format(config.get("Global", "serverip"), config.get("Global", "servernetmask")))

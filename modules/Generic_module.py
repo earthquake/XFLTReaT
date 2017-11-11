@@ -30,6 +30,7 @@ if "Generic_module.py" in sys.argv[0]:
 import threading
 
 #local files
+import common
 from packetselector import PacketSelector
 from client import Client
 
@@ -37,7 +38,7 @@ class Generic_module(threading.Thread):
 	module_name = "Generic module to inherit"
 	module_configname = "NONE"
 	module_description = """This is a generic module with all the methods to inherit.
-	This saves us some bytes and fulfill the joy of oop. Wut?
+	This saves us some bytes and fulfills the joy of oop. Wut?
 	"""
 
 	def __init_thread__(self, threadID, config, tunnel, packetselector, auth_module, verbosity):
@@ -50,7 +51,14 @@ class Generic_module(threading.Thread):
 		self.verbosity = verbosity
 		self._stop = False
 
-		return
+		if not self.os_check():
+			common.internal_print("The module '{0}' does not support your operating system.".format(self.get_module_name()), -1)
+			return False
+
+		if not self.sanity_check():
+			return False
+
+		return True
 
 	def __init__(self):
 		self._stop = False
@@ -68,6 +76,12 @@ class Generic_module(threading.Thread):
 		self._stop = True
 
 		return
+
+	def os_check(self):
+		if (self.module_os_support & common.get_os_type()):
+			return True
+		else:
+			return False
 
 	def serve(self):
 

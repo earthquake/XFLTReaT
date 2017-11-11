@@ -53,6 +53,7 @@ class ICMP(Stateless_module.Stateless_module):
 	ICMP
 	...
 	"""
+	module_os_support = common.OS_LINUX
 
 	def __init__(self):
 		super(ICMP, self).__init__()

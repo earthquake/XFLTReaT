@@ -219,6 +219,7 @@ class TCP_generic(Stateful_module.Stateful_module):
 		This module lacks of any encryption or encoding, which comes to the interface
 		goes to the socket back and forth. Nothing special.
 		"""
+	module_os_support = common.OS_LINUX
 
 	def __init__(self):
 		super(TCP_generic, self).__init__()
@@ -262,9 +263,6 @@ class TCP_generic(Stateful_module.Stateful_module):
 		self.threads = []
 		threadsnum = 0
 
-		if not self.sanity_check():
-			return 
-
 		common.internal_print("Starting module: {0} on {1}:{2}".format(self.get_module_name(), self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
 		
 		server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -296,8 +294,6 @@ class TCP_generic(Stateful_module.Stateful_module):
 
 	def connect(self):
 		try:
-			if not self.sanity_check():
-				return 
 			common.internal_print("Starting client: {0}".format(self.get_module_name()))
 
 			client_fake_thread = None
@@ -326,8 +322,6 @@ class TCP_generic(Stateful_module.Stateful_module):
 
 	def check(self):
 		try:
-			if not self.sanity_check():
-				return 
 			common.internal_print("Checking module on server: {0}".format(self.get_module_name()))
 
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

@@ -228,18 +228,18 @@ Balazs Bucsay [[@xoreipeip]]
 			# Executing module in server mode
 			if self.servermode:
 				module_thread_num = module_thread_num + 1
-				m.__init_thread__(module_thread_num, config, server_tunnel, ps, auth_module, self.verbosity)
-				m.start()
-				module_threads.append(m)
+				if m.__init_thread__(module_thread_num, config, server_tunnel, ps, auth_module, self.verbosity):
+					m.start()
+					module_threads.append(m)
 
 			# Executing module in check mode
 			if self.checkmode:
 				interface.check_default_route()
-				m.__init_thread__(0, config, None, None, None, self.verbosity)
-				try:
-					m.check()
-				except KeyboardInterrupt:
-					pass
+				if m.__init_thread__(0, config, None, None, None, self.verbosity):
+					try:
+						m.check()
+					except KeyboardInterrupt:
+						pass
 
 			# Executing module in client mode
 			if self.clientmode:
@@ -257,14 +257,13 @@ Balazs Bucsay [[@xoreipeip]]
 						interface.set_intermediate_route(config.get("Global", "remoteserverip"), remoteserverip)
 
 					# init "thread" for client mode, this will not be run in a thread.
-					m.__init_thread__(0, config, client_tunnel, None, auth_module, self.verbosity)
+					if m.__init_thread__(0, config, client_tunnel, None, auth_module, self.verbosity):
+						# run in client mode
+						m.connect()
 
-					# run in client mode
-					m.connect()
-
-					# client finished, closing down tunnel and restoring routes
-					interface.close_tunnel(client_tunnel)
-					interface.restore_routes(remoteserverip)
+						# client finished, closing down tunnel and restoring routes
+						interface.close_tunnel(client_tunnel)
+						interface.restore_routes(remoteserverip)
 				except KeyboardInterrupt:
 					# CTRL+C was pushed
 					interface.close_tunnel(client_tunnel)
