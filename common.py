@@ -54,6 +54,8 @@ OS_FREEBSD	= 8
 OS_OPENBSD	= 16
 OS_WHATNOT	= 32
 
+OS_SUPPORTED = OS_LINUX | OS_MACOSX
+
 # print severity levels:
 # 	0	always
 #	1	verbose (common.VERBOSE)
@@ -78,9 +80,26 @@ def internal_print(message, feedback = 0, verbosity = 0, severity = 0):
 			prefix = "\033[92m[+]"
 		print "%s %s%s\033[39m" % (prefix, debug, message)
 
+# 
+def os_support():
+	if OS_SUPPORTED & get_os_type():
+		return True
+	else:
+		internal_print("Sorry buddy, I am afraid that your OS is not yet supported", -1)
+		return False
+
 # check if the requirements are met
 def check_modules_installed():
-	reqs = ["pyroute2", "sctp"]
+	reqs = []
+	os_type = get_os_type()
+
+	if os_type == OS_LINUX:
+		reqs = ["pyroute2", "sctp"]
+	if os_type == OS_MACOSX:
+		reqs = ["pyroute2"]
+	if os_type == OS_WINDOWS:
+		reqs = ["pyroute2"]
+
 	allinstalled = True
 	for m in reqs:
 		if not pkgutil.find_loader(m):
@@ -92,19 +111,20 @@ def check_modules_installed():
 
 # get os type. No need to import 'platform' in every module this way.
 def get_os_type():
-	if platform.system() == "Linux":
+	os_type = platform.system()
+	if os_type == "Linux":
 		return OS_LINUX
 
-	if platform.system() == "Darwin":
+	if os_type == "Darwin":
 		return OS_MACOSX
 
-	if platform.system() == "Windows":
+	if os_type == "Windows":
 		return OS_WINDOWS
 
-	if platform.system() == "FreeBSD":
+	if os_type == "FreeBSD":
 		return OS_FREEBSD
 
-	if platform.system() == "OpenBSD":
+	if os_type == "OpenBSD":
 		return OS_OPENBSD
 
 	return OS_UNKNOWN
