@@ -34,6 +34,9 @@ import ConfigParser
 
 #local files
 import common
+# check if the OS is supported
+if not common.os_support():
+	sys.exit(-1)
 # check requirements (python modules) whether or not installed
 if not common.check_modules_installed():
 	sys.exit(-1)
