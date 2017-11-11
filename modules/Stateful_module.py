@@ -174,9 +174,12 @@ class Stateful_module(Generic_module):
 
 		return
 
+	# PLACEHOLDER: sanity check against the configuration
+	# if some of the values in the config are missing or invalid
+	# then it should return False
 	def sanity_check(self):
 		
-		return
+		return True
 
 	# PLACEHOLDER: server part of the module
 	# What comes here: setup, bind, listen, accept, fork/thread, cleanup
