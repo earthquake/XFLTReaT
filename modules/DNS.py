@@ -57,6 +57,7 @@ class DNS(UDP_generic.UDP_generic):
 	module_configname = "DNS"
 	module_description = """DNS module with zone file support, base32, base64 etc.
 	"""
+	module_os_support = common.OS_LINUX
 
 	def __init__(self):
 		super(DNS, self).__init__()
@@ -65,7 +66,7 @@ class DNS(UDP_generic.UDP_generic):
 		
 		self.zone = []
 		self.zonefile = None
-		self.DNS_query_timeout = 2.05 # going more low than 1.0 could introduce problems ATM
+		self.DNS_query_timeout = 2.05 # going lower than 1.0 could introduce problems ATM
 		self.DNS_query_repeat_timeout = 10.0 # remove expired from repeated queue
 		self.select_timeout = 1.1
 		self.qpacket_number = 0
@@ -112,9 +113,9 @@ class DNS(UDP_generic.UDP_generic):
 
 		# record list must be prioritized: 0 - best ; last - worse
 		self.record_list = {
-#			0	: ["NULL", 1600],		# best option
-#			1	: ["PRIVATE", 1600],	# second best option
-			0	: ["CNAME", 510]
+			0	: ["NULL", 1600],		# best option
+			1	: ["PRIVATE", 1600],	# second best option
+			2	: ["CNAME", 510]
 		}
 
 		# creating auto tune prefix
@@ -185,7 +186,10 @@ class DNS(UDP_generic.UDP_generic):
 		message = struct.pack("<HHHH", self.settings[4], self.settings[0], self.settings[1], self.settings[3])
 		self.send(common.CONTROL_CHANNEL_BYTE, self.CONTROL_TUNEME+message, additional_data)
 
-		self.recordtype = self.settings[5]
+		if (self.record_list[self.settings[4]][0] == "CNAME"):
+			self.recordtype = self.settings[5]
+		else:
+			self.recordtype = self.record_list[self.settings[4]][0]
 		self.RRtype_num = self.DNS_proto.reverse_RR_type_num(self.recordtype)
 		self.upload_encoding_class = self.upload_encoding_list[self.settings[0]]
 		self.download_encoding_class = self.download_encoding_list[self.settings[1]]
@@ -1008,8 +1012,6 @@ class DNS(UDP_generic.UDP_generic):
 
 	def serve(self):
 		server_socket = None
-		if not self.sanity_check():
-			return 
 		if self.zonefile:
 			(hostname, self.ttl, self.zone) = self.DNS_common.parse_zone_file(self.zonefile)
 			if hostname and (hostname+"." != self.hostname):
@@ -1039,8 +1041,6 @@ class DNS(UDP_generic.UDP_generic):
 		return
 
 	def connect(self):
-		if not self.sanity_check():
-			return 
 		try:
 			common.internal_print("Using nameserver: {0}".format(self.nameserver))
 			common.internal_print("Starting client: {0}".format(self.get_module_name()))
@@ -1069,8 +1069,6 @@ class DNS(UDP_generic.UDP_generic):
 		return
 
 	def check(self):
-		if not self.sanity_check():
-			return 
 		try:
 			common.internal_print("Using nameserver: {0}".format(self.nameserver))
 			common.internal_print("Checking module on server: {0}".format(self.get_module_name()))
