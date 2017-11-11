@@ -369,9 +369,6 @@ class DNS_Proto():
 			"Query error: Not implemented - the DNS does not support the record type",
 			"Query error: Refused - DNS server is not willing to answer. (can the DNS server be used as relay?)",
 			"Other error, malformed request/response, etc."]
-		#self.response_codes[3] = 
-		#self.response_codes[4] = 
-		#self.response_codes[5] = 
 
 		self.RR_types = {
 			0 : ["", None, None, None, None], # answer with no answers
@@ -594,7 +591,11 @@ class DNS_Proto():
 		return (answer_num, answers, additional_record_num, additional_records)
 
 	def get_RR_type(self, num):
-		return self.RR_types[num]
+		if num in self.RR_types:
+			return self.RR_types[num]
+		else:
+			common.internal_print("Error: requested RR type was not in the list.", -1)
+			return None
 
 	def reverse_RR_type(self, RRtype):
 		for i in self.RR_types:
