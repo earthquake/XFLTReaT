@@ -281,8 +281,9 @@ class Interface():
 			ps = subprocess.Popen(["route", "delete", "default"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			(stdout, stderr) = ps.communicate()
 			if stderr:
-				common.internal_print("Error: deleting default route: {0}".format(stderr), -1)
-				sys.exit(-1)
+				if not "not in table" in stderr:
+					common.internal_print("Error: deleting default route: {0}".format(stderr), -1)
+					sys.exit(-1)
 
 			ps = subprocess.Popen(["route", "add", "default", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			(stdout, stderr) = ps.communicate()
@@ -290,6 +291,5 @@ class Interface():
 				if not "File exists" in stderr:
 					common.internal_print("Error: adding server route: {0}".format(stderr), -1)
 					sys.exit(-1)
-
 
 		return
