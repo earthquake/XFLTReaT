@@ -209,7 +209,7 @@ Balazs Bucsay [[@xoreipeip]]
 		if self.servermode:
 			server_tunnel = interface.tun_alloc(config.get("Global", "serverif"), interface.IFF_TUN|interface.IFF_NO_PI)
 			interface.set_ip_address(config.get("Global", "serverif"), 
-				config.get("Global", "serverip"), config.get("Global", "servernetmask"))
+				config.get("Global", "serverip"), config.get("Global", "serverip"), config.get("Global", "servernetmask"))
 			interface.set_mtu(config.get("Global", "serverif"), int(config.get("Global", "mtu")))
 
 			# start thread with socket-interface related pipes
@@ -220,8 +220,8 @@ Balazs Bucsay [[@xoreipeip]]
 		if self.clientmode:
 			client_tunnel = interface.tun_alloc(config.get("Global", "clientif"), interface.IFF_TUN|interface.IFF_NO_PI)
 			interface.set_ip_address(config.get("Global", "clientif"), 
-				config.get("Global", "clientip"), config.get("Global", "clientnetmask"))
-			interface.set_default_route(config.get("Global", "remoteserverip"), config.get("Global", "serverip"))
+				config.get("Global", "clientip"), config.get("Global", "serverip"), config.get("Global", "clientnetmask"))
+			interface.set_default_route(config.get("Global", "remoteserverip"), config.get("Global", "clientip"), config.get("Global", "serverip"))
 			interface.set_mtu(config.get("Global", "clientif"), int(config.get("Global", "mtu")))
 
 		module_threads = []
@@ -266,23 +266,24 @@ Balazs Bucsay [[@xoreipeip]]
 
 						# client finished, closing down tunnel and restoring routes
 						interface.close_tunnel(client_tunnel)
-						interface.restore_routes(remoteserverip)
+
+					interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
 				except KeyboardInterrupt:
 					# CTRL+C was pushed
 					interface.close_tunnel(client_tunnel)
-					interface.restore_routes(remoteserverip)
+					interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
 					pass
 				except socket.error as e:
 					# socket related error
 					interface.close_tunnel(client_tunnel)
-					interface.restore_routes(remoteserverip)
+					interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
 					if e.errno == errno.ECONNREFUSED:
 						common.internal_print("Socket does not seem to answer.", -1)
 					else:
 						common.internal_print("Socket died, probably the server went down. ({0})".format(e.errno), -1)
 				except: 
 					interface.close_tunnel(client_tunnel)
-					interface.restore_routes(remoteserverip)
+					interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
 					raise
 
 		# No modules found enabled
