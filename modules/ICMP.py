@@ -33,6 +33,7 @@ import os
 import struct
 import threading
 import random
+import subprocess
 
 #local files
 import Stateless_module
@@ -53,7 +54,7 @@ class ICMP(Stateless_module.Stateless_module):
 	ICMP
 	...
 	"""
-	module_os_support = common.OS_LINUX
+	module_os_support = common.OS_LINUX | common.OS_MACOSX
 
 	def __init__(self):
 		super(ICMP, self).__init__()
@@ -70,6 +71,7 @@ class ICMP(Stateless_module.Stateless_module):
 		self.TRACKING_THRESHOLD = 50
 		# then we cut back the difference with adjust:
 		self.TRACKING_ADJUST = 20
+		self.os_type = common.get_os_type()
 
 		return
 
@@ -106,7 +108,15 @@ class ICMP(Stateless_module.Stateless_module):
 
 	def communication_initialization(self):
 		self.clients = []
-		os.system("echo 1 > /proc/sys/net/ipv4/icmp_echo_ignore_all") #???
+		if self.serverorclient:
+			if self.os_type == common.OS_LINUX:
+				ps = subprocess.Popen(["cat", "/proc/sys/net/ipv4/icmp_echo_ignore_all"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+				(stdout, stderr) = ps.communicate()
+				if stderr:
+					common.internal_print("Error: deleting default route: {0}".format(stderr), -1)
+					sys.exit(-1)
+				self.orig_ieia_value = stdout[0:1]
+				os.system("echo 1 > /proc/sys/net/ipv4/icmp_echo_ignore_all")
 
 		if self.serverorclient:
 			self.ICMP_send = self.icmp.ICMP_ECHO_RESPONSE
@@ -410,7 +420,9 @@ class ICMP(Stateless_module.Stateless_module):
 
 	def cleanup(self):
 		common.internal_print("Shutting down module: {0}".format(self.get_module_name()))
-		os.system("echo 0 > /proc/sys/net/ipv4/icmp_echo_ignore_all") #???
+		if self.serverorclient:
+			if self.os_type == common.OS_LINUX:
+				os.system("echo {0} > /proc/sys/net/ipv4/icmp_echo_ignore_all".format(self.orig_ieia_value)) #???
 		try:
 			self.comms_socket.close()
 		except:
