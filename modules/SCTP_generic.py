@@ -230,6 +230,7 @@ class SCTP_generic(Stateful_module.Stateful_module):
 		# bit hacky, but it needs to be loaded somewhere.
 		if self.os_check():
 			import sctp
+			self.sctp = sctp
 
 		return
 
@@ -243,7 +244,7 @@ class SCTP_generic(Stateful_module.Stateful_module):
 		# not so nice solution to get rid of the block of accept()
 		# unfortunately close() does not help on the block
 		try:
-			server_socket = sctpsocket_tcp(socket.AF_INET)
+			server_socket = self.sctp.sctpsocket_tcp(socket.AF_INET)
 			if self.config.get("Global", "serverbind") == "0.0.0.0":
 				server_socket.connect(("127.0.0.1", int(self.config.get(self.get_module_configname(), "serverport"))))
 			else:
@@ -274,7 +275,7 @@ class SCTP_generic(Stateful_module.Stateful_module):
 
 		common.internal_print("Starting module: {0} on {1}:{2}".format(self.get_module_name(), self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
 		
-		server_socket = sctpsocket_tcp(socket.AF_INET)
+		server_socket = self.sctp.sctpsocket_tcp(socket.AF_INET)
 		server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		try:
 			server_socket.bind((self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
@@ -307,7 +308,7 @@ class SCTP_generic(Stateful_module.Stateful_module):
 
 			client_fake_thread = None
 
-			server_socket = sctpsocket_tcp(socket.AF_INET)
+			server_socket = self.sctp.sctpsocket_tcp(socket.AF_INET)
 			server_socket.settimeout(3)
 			server_socket.connect((self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport"))))
 
@@ -333,7 +334,7 @@ class SCTP_generic(Stateful_module.Stateful_module):
 		try:
 			common.internal_print("Checking module on server: {0}".format(self.get_module_name()))
 
-			server_socket = sctpsocket_tcp(socket.AF_INET)
+			server_socket = self.sctp.sctpsocket_tcp(socket.AF_INET)
 			server_socket.settimeout(3)
 			server_socket.connect((self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport"))))
 			client_fake_thread = SCTP_generic_thread(0, 0, None, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
