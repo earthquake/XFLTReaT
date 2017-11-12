@@ -96,9 +96,9 @@ def check_modules_installed():
 	if os_type == OS_LINUX:
 		reqs = ["pyroute2", "sctp"]
 	if os_type == OS_MACOSX:
-		reqs = ["pyroute2"]
+		reqs = []
 	if os_type == OS_WINDOWS:
-		reqs = ["pyroute2"]
+		reqs = []
 
 	allinstalled = True
 	for m in reqs:
