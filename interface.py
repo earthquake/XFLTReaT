@@ -122,6 +122,17 @@ class Interface():
 				print e
 				sys.exit(-1)
 
+			# adding new route for forwarding packets properly.
+			integer_ip = struct.unpack(">I", socket.inet_pton(socket.AF_INET, serverip))[0]
+			rangeip = socket.inet_ntop(socket.AF_INET, struct.pack(">I", integer_ip & ((2**int(netmask))-1)<<32-int(netmask)))
+			ps = subprocess.Popen(["route", "add", "-net", rangeip+"/"+netmask, serverip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+			(stdout, stderr) = ps.communicate()
+			if stderr:
+				if not "File exists" in stderr:
+					common.internal_print("Error: adding client route: {0}".format(stderr), -1)
+					sys.exit(-1)
+
+
 		return
 
 	# closing tunnel file descriptor
