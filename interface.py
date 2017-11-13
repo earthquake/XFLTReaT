@@ -75,12 +75,17 @@ class Interface():
 		
 		if self.os_type == common.OS_MACOSX:
 			#TODO loop to look for an interface that is not busy
-			self.iface_name = "tun0"
-			try:
-				tun = os.open("/dev/"+self.iface_name, os.O_EXCL|os.O_RDWR, 0)
-			except Exception as e:
-				print e
-				sys.exit(-1)
+			for i in range(0, 16):
+				self.iface_name = "tun{0}".format(i)
+				try:
+					tun = os.open("/dev/"+self.iface_name, os.O_EXCL|os.O_RDWR, 0)
+				except Exception as exception:
+					if exception.args[0] == 16:
+						continue
+					else:
+						print exception
+						sys.exit(-1)
+				break
 
 		return tun
 
