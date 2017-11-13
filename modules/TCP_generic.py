@@ -283,10 +283,10 @@ class TCP_generic(Stateful_module.Stateful_module):
 
 		except socket.error as exception:
 			# [Errno 98] Address already in use
-			if exception.args[0] != 98:
-				raise
-			else:
+			if ((self.os_type == common.OS_LINUX) and (exception.args[0] == 98)) or ((self.os_type == common.OS_MACOSX) and (exception.args[0] == 48)):
 				common.internal_print("Starting failed, port is in use: {0} on {1}:{2}".format(self.get_module_name(), self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))), -1)
+			else:
+				raise
 
 		self.cleanup(server_socket)
 
