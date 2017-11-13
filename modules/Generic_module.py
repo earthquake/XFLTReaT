@@ -62,6 +62,7 @@ class Generic_module(threading.Thread):
 
 	def __init__(self):
 		self._stop = False
+		self.os_type = common.get_os_type()
 
 		return
 

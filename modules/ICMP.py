@@ -71,7 +71,6 @@ class ICMP(Stateless_module.Stateless_module):
 		self.TRACKING_THRESHOLD = 50
 		# then we cut back the difference with adjust:
 		self.TRACKING_ADJUST = 20
-		self.os_type = common.get_os_type()
 
 		return
 
