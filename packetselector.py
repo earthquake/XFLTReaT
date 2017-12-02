@@ -120,7 +120,7 @@ class PacketSelector(threading.Thread):
 						# is the rest less than the packet length?
 						if packetlen > len(message):
 							# in case it is less, we need to read more
-							message += os.read(self.tunnel_r, 4096)
+							message += os.read(self.tunnel, 4096)
 						readytogo = message[0:packetlen]
 						message = message[packetlen:]
 						# looking for client
