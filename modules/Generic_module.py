@@ -79,7 +79,7 @@ class Generic_module(threading.Thread):
 		return
 
 	def os_check(self):
-		if (self.module_os_support & common.get_os_type()):
+		if (self.module_os_support & self.os_type):
 			return True
 		else:
 			return False
