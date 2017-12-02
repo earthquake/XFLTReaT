@@ -36,6 +36,8 @@ import select
 import struct
 import socket
 
+#local files
+import common
 from client import Client
 
 class PacketSelector(threading.Thread):
@@ -47,6 +49,7 @@ class PacketSelector(threading.Thread):
 		self.clients = []
 		self.tunnel = tunnel
 		self._stop = False
+		self.os_type = common.get_os_type()
 
 	# return client list
 	def get_clients(self):
@@ -86,7 +89,6 @@ class PacketSelector(threading.Thread):
 
 		return
 
-
 	# This function should run since the framework was started. It runs in an
 	# infinite loop to read the packets off the tunnel.
 	# When an IPv4 packet was found that will be selected and checked whether
@@ -100,7 +102,7 @@ class PacketSelector(threading.Thread):
 		while not self._stop:
 			try:
 				readable, writable, exceptional = select.select(rlist, wlist, xlist, self.timeout)
-			except select.error, e:
+			except select.error as e:
 				print e
 				break
 
@@ -109,10 +111,12 @@ class PacketSelector(threading.Thread):
 				if s is self.tunnel:
 					# yes there is, read the packet or packets off the tunnel
 					message = os.read(self.tunnel, 4096)
+					if self.os_type == common.OS_MACOSX:
+						message = message[4:]
 					while True:
 						# dumb check, but seems to be working. The packet has 
 						# to be longer than 4 and it must be IPv4
-						if (len(message) < 4) and (message[0:1] != "\x45"): #Only care about IPv4
+						if (len(message) < 4) or (message[0:1] != "\x45"): #Only care about IPv4
 							break
 						packetlen = struct.unpack(">H", message[2:4])[0]
 						if packetlen == 0:
