@@ -142,7 +142,7 @@ Balazs Bucsay [[@xoreipeip]]
 			sys.exit(-1)
 
 		# sanity check on configuration, exit on error
-		if not common.config_sanity_check(config, (self.servermode or (not self.clientmode and not self.checkmode))):
+		if not common.config_sanity_check(config, (self.servermode)):
 			sys.exit(-1)
 
 		# load authentication module
@@ -293,7 +293,7 @@ Balazs Bucsay [[@xoreipeip]]
 		# No modules found enabled
 		if not module_threads:
 			common.internal_print("Exiting...")
-			if (self.servermode or (not self.clientmode and not self.checkmode)):
+			if self.servermode:
 				ps.stop()
 		else:
 			time.sleep(0.5)
@@ -308,6 +308,10 @@ Balazs Bucsay [[@xoreipeip]]
 				ps.stop()
 				for t in module_threads:
 					t.stop()
+
+		# give one sec to clean up for modules, otherwise some objects just
+		# disapper and cannot be closed properly like the tunnel interface
+		time.sleep(1.0)
 
 # main function
 if __name__ == "__main__":
