@@ -129,6 +129,9 @@ def get_os_type():
 
 	return OS_UNKNOWN
 
+def get_os_release():
+	return platform.release()
+
 # check if the forwarding was set properly.
 def check_router_settings(config):
 	if get_os_type == OS_LINUX:
