@@ -139,7 +139,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 		except:
 			pass
 		try:
-			os.close(self.packetselector.get_pipe_w())		
+			os.close(self.packetselector.get_pipe_w())
 		except:
 			pass
 
@@ -189,9 +189,11 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 
 						if self.authenticated:
 							try:
-								os.write(self.tunnel_w, message[len(common.CONTROL_CHANNEL_BYTE):])
+								self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
 							except OSError as e:
 								print e # wut?
+							except Exception as e:
+								print e
 
 			except (socket.error, OSError, IOError):
 				if self.serverorclient:

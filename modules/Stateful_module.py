@@ -46,6 +46,7 @@ import checks
 class Stateful_thread(threading.Thread):
 	def __init__(self):
 		super(Stateful_thread, self).__init__()
+		self.os_type = common.get_os_type()
 		self.checks = checks.Checks()
 		self.controlchannel = controlchannel.ControlChannel()
 
@@ -83,6 +84,13 @@ class Stateful_thread(threading.Thread):
 	def remove_authenticated_client(self, additional_data):
 
 		return
+
+	# This function writes the packet to the tunnel.
+	# on MacOS(X) utun, all packets needs to be prefixed with 4 specific bytes
+	def packet_writer(self, packet):
+		if self.os_type == common.OS_MACOSX:
+			packet = "\x00\x00\x00\x02"+packet
+		os.write(self.tunnel_w, packet)
 
 	# TODO: placeholder function to transform packets back and forth.
 	# encryption, encodings anything that should be done on the packet and 

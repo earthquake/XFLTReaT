@@ -92,6 +92,12 @@ class Stateless_module(Generic_module):
 
 		return
 
+
+	def packet_writer(self, packet):
+		if self.os_type == common.OS_MACOSX:
+			packet = "\x00\x00\x00\x02"+packet
+		print os.write(self.tunnel, packet)
+
 	# TODO: placeholder function to transform packets back and forth.
 	# encryption, encodings anything that should be done on the packet and 
 	# should be easily variable based on the config
