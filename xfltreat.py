@@ -119,6 +119,10 @@ Balazs Bucsay [[@xoreipeip]]
 					common.internal_print("Invalid verbose value: {0}".format(arg), -1)
 					sys.exit(-1)
 
+		if not common.get_privilege_level():
+			common.internal_print("The tool needs superuser or admin privileges. Run as root or Administrator.", -1)
+			sys.exit(-1)
+
 		# set the servermode when it was not specified expicitly
 		if (not self.clientmode and not self.checkmode):
 			self.servermode = 1

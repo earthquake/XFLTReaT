@@ -129,12 +129,27 @@ def get_os_type():
 
 	return OS_UNKNOWN
 
+# get the release of the OS
 def get_os_release():
 	return platform.release()
 
+# get the privilege level, True if it is enough to run.
+def get_privilege_level():
+	os_type = get_os_type()
+	if (os_type == OS_LINUX) or (os_type == OS_MACOSX):
+		if os.getuid() != 0:
+			return False
+		else:
+			return True
+
+	#TODO
+	print "IT'S TIME TO SUPPORT WINDOWS MATE"
+	return False
+
+
 # check if the forwarding was set properly.
 def check_router_settings(config):
-	if get_os_type == OS_LINUX:
+	if get_os_type() == OS_LINUX:
 		if open('/proc/sys/net/ipv4/ip_forward','r').read()[0:1] == "0":
 			internal_print("The IP forwarding is not set.", -1)
 			internal_print("Please use the following two commands to set it properly (root needed):\n#\tsysctl -w net.ipv4.ip_forward=1\n#\tiptables -t nat -A POSTROUTING -s {0}/{1} -o [YOUR_INTERFACE/e.g./eth0] -j MASQUERADE\n".format(config.get("Global", "serverip"), config.get("Global", "servernetmask")))
