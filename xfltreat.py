@@ -204,6 +204,10 @@ Balazs Bucsay [[@xoreipeip]]
 			common.internal_print("In client mode only one module can be used.", -1)
 			sys.exit(-1)
 
+		if not len(modules_enabled):
+			common.internal_print("No modules were enabled in configuration", -1)
+			sys.exit(-1)
+
 		# One Interface to rule them all, One Interface to find them,
 		# One Interface to bring them all and in the darkness bind them
 		common.internal_print("Setting up interface")
@@ -227,6 +231,7 @@ Balazs Bucsay [[@xoreipeip]]
 				config.get("Global", "clientip"), config.get("Global", "serverip"), config.get("Global", "clientnetmask"))
 			interface.set_default_route(config.get("Global", "remoteserverip"), config.get("Global", "clientip"), config.get("Global", "serverip"))
 			interface.set_mtu(config.get("Global", "clientif"), int(config.get("Global", "mtu")))
+			common.internal_print("Please use CTRL+C to exit...")
 
 		module_threads = []
 		module_thread_num = 0
@@ -290,11 +295,9 @@ Balazs Bucsay [[@xoreipeip]]
 					interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
 					raise
 
-		# No modules found enabled
+		# No modules are running
 		if not module_threads:
 			common.internal_print("Exiting...")
-			if self.servermode:
-				ps.stop()
 		else:
 			time.sleep(0.5)
 			try:
