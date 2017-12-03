@@ -55,6 +55,7 @@ class WebSocket_thread(TCP_generic.TCP_generic_thread):
 		
 		common.internal_print("Waiting for upgrade request", 0, self.verbosity, common.DEBUG)
 		response = self.comms_socket.recv(4096)
+
 		if len(response) == 0:
 			common.internal_print("Connection was dropped", 0, self.verbosity, common.DEBUG)
 			self.cleanup()
@@ -147,7 +148,7 @@ class WebSocket(TCP_generic.TCP_generic):
 
 	def websocket_upgrade(self, server_socket):
 
-		request = self.WebSocket_proto.upgrade(base64.b64encode(os.urandom(9)).replace("/", "").replace("+", ""), self.config.get(self.get_module_configname(), "hostname"), self.config.get(self.get_module_configname(), "hostname"), 13)
+		request = self.WebSocket_proto.upgrade(base64.b64encode(os.urandom(9)).replace("/", "").replace("+", ""), self.config.get("Global", "remoteserverhost"), self.config.get(self.get_module_configname(), "serverport"), 13)
 		server_socket.send(request)
 		
 		response = server_socket.recv(4096)
@@ -177,13 +178,13 @@ class WebSocket(TCP_generic.TCP_generic):
 			return False
 
 
-		if not self.config.has_option(self.get_module_configname(), "hostname"):
-			common.internal_print("'hostname' option is missing from '{0}' section".format(self.get_module_configname()), -1)
+		if not self.config.has_option("Global", "remoteserverhost"):
+			common.internal_print("'remoteserverhost' option is missing from 'Global' section", -1)
 
 			return False
 
-		if not common.is_hostname(self.config.get(self.get_module_configname(), "hostname")) and not common.is_ipv4(self.config.get(self.get_module_configname(), "hostname")) and not common.is_ipv6(self.config.get(self.get_module_configname(), "hostname")):
-			common.internal_print("'hostname' should be a hostname '{0}' section".format(self.get_module_configname()), -1)
+		if not common.is_hostname(self.config.get("Global", "remoteserverhost")) and not common.is_ipv4(self.config.get("Global", "remoteserverhost")) and not common.is_ipv6(self.config.get("Global", "remoteserverhost")):
+			common.internal_print("'remoteserverhost' should be a hostname 'Global' section", -1)
 
 			return False
 

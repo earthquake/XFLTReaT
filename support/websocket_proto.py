@@ -36,15 +36,15 @@ class WebSocket_Proto():
 	def __init__(self):
 		return
 
-	def upgrade(self, url, hostname, origin, version):
-		upgrade_request  = "GET /"+url+" HTTP/1.1\r\n"
-		upgrade_request += "Host: "+hostname+"\r\n"
+	def upgrade(self, url, hostname, port, version):
+		upgrade_request  = "GET http://{0}:{1}/{2} HTTP/1.1\r\n".format(hostname, port, url)
+		upgrade_request += "Host: {0}:{1}\r\n".format(hostname, port)
 		upgrade_request += "Upgrade: websocket\r\n"
 		upgrade_request += "Connection: Upgrade\r\n"
-		upgrade_request += "Sec-WebSocket-Key: "+base64.b64encode(os.urandom(16))+"\r\n"
+		upgrade_request += "Origin: {0}:{1}\r\n".format(hostname, port)
+		upgrade_request += "Sec-WebSocket-Key: {0}\r\n".format(base64.b64encode(os.urandom(16)))
 		upgrade_request += "Sec-WebSocket-Protocol: chat, superchat\r\n"
-		upgrade_request += "Sec-WebSocket-Version: "+str(version)+"\r\n"
-		upgrade_request += "Origin: "+origin+"\r\n\r\n"
+		upgrade_request += "Sec-WebSocket-Version: {0}\r\n\r\n".format(version)
 
 		return upgrade_request
 
@@ -65,7 +65,7 @@ class WebSocket_Proto():
 		switching_reponse  = "HTTP/1.1 101 Switching Protocols\r\n"
 		switching_reponse += "Upgrade: websocket\r\n"
 		switching_reponse += "Connection: Upgrade\r\n"
-		switching_reponse += "Sec-WebSocket-Accept: "+handshake+"\r\n\r\n"
+		switching_reponse += "Sec-WebSocket-Accept: {0}\r\n\r\n".format(handshake)
 
 		return switching_reponse
 	'''
