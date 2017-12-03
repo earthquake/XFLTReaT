@@ -219,12 +219,27 @@ class Interface():
 
 	# check if more than one or no default route is present
 	def check_default_route(self):
-	 	if len(self.ip.get_default_routes()) < 1:
-			common.internal_print("No default route. Please set up your routing before executing the tool", -1)
-			sys.exit(-1)
-	 	if len(self.ip.get_default_routes()) > 1:
-			common.internal_print("More than one default route. This should be reviewed before executing the tool.", -1)
-			sys.exit(-1)	
+		if self.os_type == common.OS_LINUX:
+			if len(self.ip.get_default_routes()) < 1:
+				common.internal_print("No default route. Please set up your routing before executing the tool", -1)
+				sys.exit(-1)
+			if len(self.ip.get_default_routes()) > 1:
+				common.internal_print("More than one default route. This should be reviewed before executing the tool.", -1)
+				sys.exit(-1)
+		if self.os_type == common.OS_MACOSX:
+			# get default gateway
+			ps = subprocess.Popen(["route", "-n", "get", "default"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+			(stdout, stderr) = ps.communicate()
+
+			# is there a default gateway entry?
+			if "not in table" in stderr:
+				common.internal_print("No default route. Please set up your routing before executing the tool", -1)
+				sys.exit(-1)
+
+			# check for multiple default routes
+			# is this even possible on MacOS(X)?
+
+		return
 
 	# automatic routing set up.
 	# check for multiple default routes, if there are then print error message
