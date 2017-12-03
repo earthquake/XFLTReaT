@@ -46,7 +46,7 @@ class Stateless_module(Generic_module):
 	def __init__(self):
 		super(Stateless_module, self).__init__()
 		self.checks = checks.Checks()
-		self.timeout = 3.0
+		self.timeout = 1.0
 		self.controlchannel = controlchannel.ControlChannel()
 
 		# control message handlers
