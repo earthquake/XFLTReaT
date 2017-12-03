@@ -164,13 +164,14 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 			try:
 				for s in readable:
 					if (s is self.tunnel_r) and not self._stop:
-						message = os.read(self.tunnel_r, 4096)
+						message = self.packet_reader(self.tunnel_r, True, self.serverorclient)
 						while True:
 							if (len(message) < 4) or (message[0:1] != "\x45"): #Only care about IPv4
 								break
 							packetlen = struct.unpack(">H", message[2:4])[0] # IP Total length
 							if packetlen > len(message):
-								message += os.read(self.tunnel_r, 4096)
+								message += self.packet_reader(self.tunnel_r, False, self.serverorclient)
+
 							readytogo = message[0:packetlen]
 							message = message[packetlen:]
 							self.send(common.DATA_CHANNEL_BYTE, readytogo, None)

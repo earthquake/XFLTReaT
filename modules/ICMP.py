@@ -219,13 +219,13 @@ class ICMP(Stateless_module.Stateless_module):
 
 				for s in readable:
 					if (s in self.rlist) and not (s is self.comms_socket):
-						message = os.read(s, 4096)
+						message = self.packet_reader(s, True, self.serverorclient)
 						while True:
 							if (len(message) < 4) or (message[0:1] != "\x45"): #Only care about IPv4
 								break
 							packetlen = struct.unpack(">H", message[2:4])[0] # IP Total length
 							if packetlen > len(message):
-								message += os.read(s, 4096)
+								message += self.packet_reader(s, False, self.serverorclient)
 
 							readytogo = message[0:packetlen]
 							message = message[packetlen:]
@@ -332,7 +332,7 @@ class ICMP(Stateless_module.Stateless_module):
 							
 						if self.authenticated:
 							try:
-								os.write(self.tunnel, message[len(common.CONTROL_CHANNEL_BYTE):])
+								self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
 							except OSError as e:
 								print e
 
