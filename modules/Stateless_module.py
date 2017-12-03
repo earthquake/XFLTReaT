@@ -93,10 +93,21 @@ class Stateless_module(Generic_module):
 		return
 
 
+	# This function writes the packet to the tunnel.
+	# on MacOS(X) utun, all packets needs to be prefixed with 4 specific bytes
 	def packet_writer(self, packet):
 		if self.os_type == common.OS_MACOSX:
 			packet = "\x00\x00\x00\x02"+packet
 		print os.write(self.tunnel, packet)
+
+	# This function reades the packet from the tunnel.
+	# on MacOS(X) utun, all packets needs to be prefixed with 4 specific bytes
+	# this will take off the prefix if that is needed
+	def packet_reader(self, tunnel, first_read, serverorclient):
+		packet = os.read(tunnel, 4096)
+		if (self.os_type == common.OS_MACOSX) and first_read and not serverorclient:
+			packet = packet[4:]
+		return packet
 
 	# TODO: placeholder function to transform packets back and forth.
 	# encryption, encodings anything that should be done on the packet and 

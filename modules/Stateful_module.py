@@ -92,6 +92,18 @@ class Stateful_thread(threading.Thread):
 			packet = "\x00\x00\x00\x02"+packet
 		os.write(self.tunnel_w, packet)
 
+	# This function reades the packet from the tunnel.
+	# on MacOS(X) utun, all packets needs to be prefixed with 4 specific bytes
+	# this will take off the prefix if that is needed
+	# first_read True: discard the first 4 bytes / utun related
+	# serverorclient 1: server, there is no 4byte prefix, it comes fro the PS
+	#				 0: client, it comes from the tunnel iface directly
+	def packet_reader(self, tunnel, first_read, serverorclient):
+		packet = os.read(tunnel, 4096)
+		if (self.os_type == common.OS_MACOSX) and first_read and not serverorclient:
+			packet = packet[4:]
+		return packet
+
 	# TODO: placeholder function to transform packets back and forth.
 	# encryption, encodings anything that should be done on the packet and 
 	# should be easily variable based on the config
