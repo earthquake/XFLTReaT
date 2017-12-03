@@ -308,12 +308,15 @@ class Interface():
 				common.internal_print("Error: adding new default route: {0}".format(stderr), -1)
 				sys.exit(-1)
 
+			'''
+			# keeping this, in case I can test with tun, not utun
 			ps = subprocess.Popen(["route", "add", "-net", clientip, serverip, "255.255.255.255"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			(stdout, stderr) = ps.communicate()
 			if stderr:
 				if not "File exists" in stderr:
 					common.internal_print("Error: adding new route: {0}".format(stderr), -1)
 					sys.exit(-1)
+			'''
 		
 		return
 
@@ -356,11 +359,14 @@ class Interface():
 				common.internal_print("Error: delete old route: {0}".format(stderr), -1)
 				sys.exit(-1)
 
+			'''
+			# keeping this, in case I can test with tun, not utun
 			ps = subprocess.Popen(["route", "delete", clientip, serverip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			(stdout, stderr) = ps.communicate()
 			if stderr:
 				common.internal_print("Error: delete old server route: {0}".format(stderr), -1)
 				sys.exit(-1)
+			'''
 
 			ps = subprocess.Popen(["route", "delete", "default"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			(stdout, stderr) = ps.communicate()
