@@ -53,6 +53,18 @@ class Interface():
 	IOCTL_MACOSX_SIOCSIFFLAGS = 0x80206910
 	IOCTL_MACOSX_SIOCAIFADDR = 0x8040691A
 
+	MACOS_UTUN_CONTROL_NAME = "com.apple.net.utun_control"
+	MACOS_PF_SYSTEM = 32
+	MACOS_AF_SYSTEM = 32
+	MACOS_SYSPROTO_CONTROL = 2
+	MACOS_AF_SYS_CONTROL = 2
+	MACOS_UTUN_OPT_IFNAME = 2
+	MACOS_MAX_KCTL_NAME = 96
+	MACOS_CTLIOCGINFO = 0xc0644e03
+	temp = None
+
+	WINDOWS_ADAPTER_KEY = "SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}"
+
 	orig_default_gw = None
 
 	def __init__(self):
@@ -74,18 +86,75 @@ class Interface():
 				sys.exit(-1)
 		
 		if self.os_type == common.OS_MACOSX:
-			#TODO loop to look for an interface that is not busy
-			for i in range(0, 16):
-				self.iface_name = "tun{0}".format(i)
-				try:
-					tun = os.open("/dev/"+self.iface_name, os.O_EXCL|os.O_RDWR, 0)
-				except Exception as exception:
-					if exception.args[0] == 16:
-						continue
-					else:
-						print exception
-						sys.exit(-1)
-				break
+			'''
+			# before utun, tun/tap driver had to be used. utun support was 
+			# added to MacOS 10.7+ so there is no need for tun/tap ext.
+			if common.get_os_release() == '13.4.0':
+				#TODO loop to look for an interface that is not busy
+				for i in range(0, 16):
+					self.iface_name = "tun{0}".format(i)
+					try:
+						tun = os.open("/dev/"+self.iface_name, os.O_EXCL|os.O_RDWR, 0)
+						print tun
+					except Exception as exception:
+						if exception.args[0] == 16:
+							continue
+						else:
+							print exception
+							sys.exit(-1)
+					break
+			else:
+			'''
+			# MacOS utun support
+			# direct calls to libc are needed, because otherwise it could not
+			# done.
+			import ctypes
+			import ctypes.util
+
+			self.iface_name = "\x00"*10
+			libc_name = ctypes.util.find_library('c')
+			libc = ctypes.CDLL(libc_name, use_errno=True)
+
+			# special socket to poke MacOS(X)' soul
+			s = socket.socket(self.MACOS_PF_SYSTEM, socket.SOCK_DGRAM, self.MACOS_SYSPROTO_CONTROL)
+
+			# magic to make utun alive
+			info = struct.pack("<I{0}s".format(self.MACOS_MAX_KCTL_NAME), 0, self.MACOS_UTUN_CONTROL_NAME)
+			ctl_id = struct.unpack("<I{0}s".format(self.MACOS_MAX_KCTL_NAME), fcntl.ioctl(s, self.MACOS_CTLIOCGINFO, info))[0]
+
+			# setting up the address, because the python lib does not
+			# support this type of address type...
+			# setting the interface number to 0 to let the kernel allocate
+			addr = struct.pack("<BBHIIIIIIII", 32, self.MACOS_AF_SYSTEM, self.MACOS_AF_SYS_CONTROL, ctl_id, 0, 0, 0, 0, 0, 0, 0)
+			err = libc.connect(s.fileno(), addr, 32)
+			if err < 0:
+				err = ctypes.get_errno()
+				raise OSError(err, os.strerror(err))
+
+			# get interface name into the self.iface_name
+			err = libc.getsockopt(s.fileno(), self.MACOS_SYSPROTO_CONTROL, self.MACOS_UTUN_OPT_IFNAME, ctypes.c_char_p(self.iface_name), ctypes.byref(ctypes.c_int(10)))
+			if err < 0:
+				err = ctypes.get_errno()
+				raise OSError(err, os.strerror(err))
+
+			# setting flags on interface/fd
+			fcntl.fcntl(s, fcntl.F_SETFL, os.O_NONBLOCK)
+			fcntl.fcntl(s, fcntl.F_SETFD, fcntl.FD_CLOEXEC)
+
+			# saving the socket, otherwise it will be destroyed. with the iface
+			self.temp = s
+			return s.fileno()
+
+
+		if self.os_type == common.OS_WINDOWS:
+			#def CTL_CODE(device_type, function, melthod, access):
+			#	return (device_type << 16) | (access << 14) | (function << 2) | method
+			##define TAP_WIN_CONTROL_CODE(request,method) \
+			#  CTL_CODE (FILE_DEVICE_UNKNOWN, request, method, FILE_ANY_ACCESS)
+			##define TAP_WIN_IOCTL_CONFIG_TUN            TAP_WIN_CONTROL_CODE (10, METHOD_BUFFERED)
+			return None
+
+
 
 		return tun
 
@@ -113,7 +182,6 @@ class Interface():
 			self.ip.link('set', index=idx, state='up')
 
 		if self.os_type == common.OS_MACOSX:
-
 			ifr = struct.pack('<16sBBHIIIBBHIIIBBHIII', 
 				self.iface_name,
 				16, socket.AF_INET, 0, struct.unpack('<L', socket.inet_pton(socket.AF_INET, ip))[0], 0, 0,

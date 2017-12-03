@@ -149,10 +149,34 @@ def get_privilege_level():
 
 # check if the forwarding was set properly.
 def check_router_settings(config):
-	if get_os_type() == OS_LINUX:
+	os_type = get_os_type()
+	if os_type == OS_LINUX:
 		if open('/proc/sys/net/ipv4/ip_forward','r').read()[0:1] == "0":
 			internal_print("The IP forwarding is not set.", -1)
 			internal_print("Please use the following two commands to set it properly (root needed):\n#\tsysctl -w net.ipv4.ip_forward=1\n#\tiptables -t nat -A POSTROUTING -s {0}/{1} -o [YOUR_INTERFACE/e.g./eth0] -j MASQUERADE\n".format(config.get("Global", "serverip"), config.get("Global", "servernetmask")))
+
+			return False
+
+	if os_type == OS_MACOSX:
+		import ctypes
+		import ctypes.util
+
+		# load libc
+		libc_name = ctypes.util.find_library('c')
+		libc = ctypes.CDLL(libc_name, use_errno=True)
+
+		# get value of forwarding with sysctl
+		fw_value = ctypes.c_int(-1)
+
+		err = libc.sysctlbyname("net.inet.ip.forwarding", ctypes.byref(fw_value), ctypes.byref(ctypes.c_uint(4)), None, 0)
+		if err < 0:
+			err = ctypes.get_errno()
+			internal_print("sysctl failed: {0} : {1}".format(err, os.strerror(err)), -1)
+			return False
+
+		if fw_value.value != 1:
+			internal_print("The IP forwarding is not set.", -1)
+			internal_print("Please use the following commands to set it properly (root needed):\n#\tsysctl -w net.inet.ip.forwarding=1\nPut the following line into the /etc/pf.conf after the \'nat-anchor \"com.apple/*\"' line:\n#\tnat on en0 from {0}/{1} to any -> (en0)\nThen load the config file with pfctl:\n#\tpfctl -f /etc/pf.conf -e -v".format(config.get("Global", "serverip"), config.get("Global", "servernetmask")))
 
 			return False
 
