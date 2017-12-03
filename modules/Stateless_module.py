@@ -98,7 +98,7 @@ class Stateless_module(Generic_module):
 	def packet_writer(self, packet):
 		if self.os_type == common.OS_MACOSX:
 			packet = "\x00\x00\x00\x02"+packet
-		print os.write(self.tunnel, packet)
+		os.write(self.tunnel, packet)
 
 	# This function reades the packet from the tunnel.
 	# on MacOS(X) utun, all packets needs to be prefixed with 4 specific bytes
