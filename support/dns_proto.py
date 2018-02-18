@@ -211,7 +211,7 @@ class DNS_Queue:
 
 class DNS_common():
 	def __init__(self):
-		self.userid_alphabet = "abcdefghijklmnopqrstuvwxyZ0123456789"
+		self.userid_alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 	#def create_fragment_header(self, channel_bit, userid, packet_num, fragment_num, last_fragment):
 	def create_fragment_header(self, channel_bit, packet_num, fragment_num, last_fragment):
