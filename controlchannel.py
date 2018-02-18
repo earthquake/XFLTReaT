@@ -76,12 +76,12 @@ class ControlChannel():
 		if module.auth_module.check_details(message[len(common.CONTROL_AUTH):]):
 			module.setup_authenticated_client(message[len(common.CONTROL_AUTH):], additional_data)
 
-			common.internal_print("Client authenticated", 1, module.verbosity, common.DEBUG)
+			common.internal_print("Client authenticated", 1)
 
 			return module.cmh_struct[cm][3]
 		else:
 			module.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH_NOTOK, additional_data)
-			common.internal_print("Client authentication failed", -1, module.verbosity, common.DEBUG)
+			common.internal_print("Client authentication failed", -1)
 
 		return module.cmh_struct[cm][4]
 
