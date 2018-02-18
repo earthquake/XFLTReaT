@@ -290,7 +290,7 @@ Balazs Bucsay [[@xoreipeip]]
 						common.internal_print("Socket does not seem to answer.", -1)
 					else:
 						common.internal_print("Socket died, probably the server went down. ({0})".format(e.errno), -1)
-				except: 
+				except:
 					interface.close_tunnel(client_tunnel)
 					interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
 					raise
