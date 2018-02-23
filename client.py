@@ -131,3 +131,12 @@ class Client():
 	# False: not authenticated
 	def get_authenticated(self):
 		return self.authenticated
+
+	# function pointer to the module's stop()
+	def set_stopfp(self, stopfp):
+		self.stopfp = stopfp
+
+	# if stateless and stop() saved, call it
+	def call_stopfp(self):
+		if self.stopfp:
+			self.stopfp()
