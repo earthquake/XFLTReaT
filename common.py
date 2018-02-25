@@ -54,7 +54,7 @@ OS_FREEBSD	= 8
 OS_OPENBSD	= 16
 OS_WHATNOT	= 32
 
-OS_SUPPORTED = OS_LINUX | OS_MACOSX
+OS_SUPPORTED = OS_LINUX | OS_MACOSX | OS_WINDOWS
 
 # print severity levels:
 # 	0	always
@@ -64,7 +64,7 @@ OS_SUPPORTED = OS_LINUX | OS_MACOSX
 #	-1	negativ
 #	0	neutral
 #	1	positive
-
+colour = True
 VERBOSE = 1
 DEBUG   = 2
 def internal_print(message, feedback = 0, verbosity = 0, severity = 0):
@@ -73,14 +73,26 @@ def internal_print(message, feedback = 0, verbosity = 0, severity = 0):
 		debug = "DEBUG: "
 	if verbosity >= severity:
 		if feedback == -1:
-			prefix = "\033[91m[-]"
+			if colour:
+				prefix = "\033[91m[-]"
+			else:
+				prefix = "[-]"
 		if feedback == 0:
-			prefix = "\033[39m[*]"
+			if colour:
+				prefix = "\033[39m[*]"
+			else:
+				prefix = "[*]"
 		if feedback == 1:
-			prefix = "\033[92m[+]"
-		print "%s %s%s\033[39m" % (prefix, debug, message)
+			if colour:
+				prefix = "\033[92m[+]"
+			else:
+				prefix = "[+]"
+		if colour:
+			print "%s %s%s\033[39m" % (prefix, debug, message)
+		else:
+			print "%s %s%s" % (prefix, debug, message)
 
-# 
+# check if the OS is supported
 def os_support():
 	if OS_SUPPORTED & get_os_type():
 		return True
@@ -93,18 +105,19 @@ def check_modules_installed():
 	reqs = []
 	os_type = get_os_type()
 
+	# reqs = [["module_name", "package_name"], [...]]
 	if os_type == OS_LINUX:
-		reqs = ["pyroute2", "sctp"]
+		reqs = [["pyroute2","pyroute2"], ["sctp","sctp"]]
 	if os_type == OS_MACOSX:
 		reqs = []
 	if os_type == OS_WINDOWS:
-		reqs = []
+		reqs = [["win32file","pywin32"]]
 
 	allinstalled = True
 	for m in reqs:
-		if not pkgutil.find_loader(m):
+		if not pkgutil.find_loader(m[0]):
 			allinstalled = False
-			internal_print("The following python modules was not installed: {0}".format(m), -1)
+			internal_print("The following python modules were not installed: {0}".format(m[1]), -1)
 
 	return allinstalled
 
@@ -130,6 +143,10 @@ def get_os_type():
 	return OS_UNKNOWN
 
 # get the release of the OS
+def get_os_version():
+	return platform.version()
+
+# get the release of the OS
 def get_os_release():
 	return platform.release()
 
@@ -137,13 +154,18 @@ def get_os_release():
 def get_privilege_level():
 	os_type = get_os_type()
 	if (os_type == OS_LINUX) or (os_type == OS_MACOSX):
-		if os.getuid() != 0:
-			return False
-		else:
+		if os.getuid() == 0:
 			return True
+		else:
+			return False
 
-	#TODO
-	print "IT'S TIME TO SUPPORT WINDOWS MATE"
+	if os_type == OS_WINDOWS:
+		import ctypes
+		if ctypes.windll.shell32.IsUserAnAdmin():
+			return True
+		else:
+			return False
+
 	return False
 
 
@@ -179,6 +201,26 @@ def check_router_settings(config):
 			internal_print("Please use the following commands to set it properly (root needed):\n#\tsysctl -w net.inet.ip.forwarding=1\nPut the following line into the /etc/pf.conf after the \'nat-anchor \"com.apple/*\"' line:\n#\tnat on en0 from {0}/{1} to any -> (en0)\nThen load the config file with pfctl:\n#\tpfctl -f /etc/pf.conf -e -v".format(config.get("Global", "serverip"), config.get("Global", "servernetmask")))
 
 			return False
+
+	if os_type == OS_WINDOWS:
+		import _winreg as registry
+		#HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\IPEnableRouter - DWORD 1 - enable
+		#"Routing and Remote Access" service - Enable, start
+		PATH = "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\"
+
+		try:
+			regkey = registry.OpenKey(registry.HKEY_LOCAL_MACHINE, PATH)
+			router_value = registry.QueryValueEx(regkey, "IPEnableRouter")[0]
+		except WindowsError as e:
+			internal_print("Cannot get IPEnableRouter value. Registry key cannot be found: {0}".format(e), -1)
+			return False
+
+		if router_value != 1:
+			internal_print("The IP forwarding is not set.", -1)
+			internal_print("Please set the IPEnableRouter value to 1 under the following registry key:\n\tHKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\\n\tMoreover you need to enable and start the \"Routing and Remote Access\" service.\n")
+
+			return False
+
 
 	return True
 
@@ -255,8 +297,8 @@ def is_control_channel(control_character):
 		return False
 
 # initialization of the stateful client object
-# TODO: shouldn't it to be in the Statefu module?
-def init_client_stateful(msg, addr, client, packetselector):
+# TODO: shouldn't it to be in the Stateful module?
+def init_client_stateful(msg, addr, client, packetselector, stopfp):
 	## TODO error handling
 	client_private_ip = msg[0:4]
 	client_public_source_ip = socket.inet_aton(addr[0])
@@ -270,20 +312,50 @@ def init_client_stateful(msg, addr, client, packetselector):
 			packetselector.delete_client(c)
 
 	# creating new pipes for the client
-	pipe_r, pipe_w = os.pipe()
-	client.set_pipes_fdnum(pipe_r, pipe_w)
-	client.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
+	if get_os_type() == OS_WINDOWS:
+		import win32pipe
+		import win32file
+		import pywintypes
+		import win32event
+
+		import win32api
+		import winerror
+
+		overlapped = pywintypes.OVERLAPPED()
+		# setting up writable named pipe
+		mailslotname = "\\\\.\\mailslot\\XFLTReaT_{0}".format(socket.inet_ntoa(client_private_ip))
+		print mailslotname
+
+		mailslot_r = win32file.CreateMailslot(mailslotname, 0, -1, None)
+		if (mailslot_r == None) or (mailslot_r == win32file.INVALID_HANDLE_VALUE):
+			internal_print("Invalid handle - mailslot", -1)
+			sys.exit(-1)
+
+		mailslot_w = win32file.CreateFile(mailslotname, win32file.GENERIC_WRITE,
+			win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE, None, win32file.OPEN_EXISTING,
+			win32file.FILE_ATTRIBUTE_NORMAL | win32file.FILE_FLAG_OVERLAPPED, None)
+		if (mailslot_w == None) or (mailslot_w == win32file.INVALID_HANDLE_VALUE):
+			internal_print("Invalid handle - readable pipe", -1)
+			sys.exit(-1)
+
+		client.set_pipes_fdnum(mailslot_r, mailslot_w)
+
+	else:
+		pipe_r, pipe_w = os.pipe()
+		client.set_pipes_fdnum(pipe_r, pipe_w)
+		client.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
 
 	# set connection related things and authenticated to True
 	client.set_public_ip_addr(client_public_source_ip)
 	client.set_public_src_port(client_public_source_port)
 	client.set_private_ip_addr(client_private_ip)
+	client.set_stopfp(stopfp)
 	client.set_authenticated(True)
 
 	return
 
 # initialization of the stateless client object
-# TODO: shouldn't it to be in the Statefu module?
+# TODO: shouldn't it to be in the Stateful module?
 def init_client_stateless(msg, addr, client, packetselector, clients):
 	## TODO error handling
 	client_private_ip = msg[0:4]
@@ -320,8 +392,6 @@ def init_client_stateless(msg, addr, client, packetselector, clients):
 # remove client from client list and close down the pipes
 def delete_client_stateless(clients, client):
 	clients.remove(client)
-	client.get_pipe_r_fd().close()
-	client.get_pipe_w_fd().close()
 
 # looking for client, based on the private IP
 def lookup_client_priv(clients, msg):
@@ -362,3 +432,8 @@ def is_ipv4(s):
 def is_ipv6(s):
 	too_long = "^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$"
 	return bool(re.match(too_long, s))
+
+# ANSI escape codes are only supported from version 10
+if get_os_type() == OS_WINDOWS:
+	if int(get_os_version()[0:get_os_version().find(".")]) < 10:
+		colour = False
