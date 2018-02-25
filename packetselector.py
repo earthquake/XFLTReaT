@@ -51,6 +51,11 @@ class PacketSelector(threading.Thread):
 		self._stop = False
 		self.os_type = common.get_os_type()
 
+		if self.os_type == common.OS_WINDOWS:
+			self.run_ps_mainloop = self.run_windows
+		else:
+			self.run_ps_mainloop = self.run_unix
+
 	# return client list
 	def get_clients(self):
 
@@ -85,16 +90,37 @@ class PacketSelector(threading.Thread):
 	# removing client from the client list
 	def delete_client(self, client):
 		if client in self.clients:
+
+			if self.os_type == common.OS_WINDOWS:
+				import win32file
+
+				try:
+					win32file.CloseHandle(client.get_pipe_r())
+					win32file.CloseHandle(client.get_pipe_w())
+				except Exception as e:
+					print "Remove authenticated client: CloseHandle exception: %r" % e
+			else:
+				try:
+					client.get_pipe_r_fd().close()
+					client.get_pipe_w_fd().close()
+				except Exception as e:
+					print "Remove authenticated client: os.close exception: %r" % e
+
+			client.call_stopfp()
 			self.clients.remove(client)
 
 		return
 
-	# This function should run since the framework was started. It runs in an
-	# infinite loop to read the packets off the tunnel.
+	# This function should run from the point when the framework was started.
+	# It runs as an infinite loop to read the packets off the tunnel.
 	# When an IPv4 packet was found that will be selected and checked whether
 	# it addresses a client in the client list. If a client was found, then the
 	# packet will be written on that pipe.
 	def run(self):
+		return self.run_ps_mainloop()
+
+
+	def run_unix(self):
 		rlist = [self.tunnel]
 		wlist = []
 		xlist = []
@@ -136,6 +162,60 @@ class PacketSelector(threading.Thread):
 								c.get_pipe_w_fd().flush()
 
 		return
+
+
+	# some ideas were taken from: https://github.com/boytm/minivtun-win/
+	def run_windows(self):
+		import win32file
+		import win32event
+		import pywintypes
+		import winerror
+		import win32api
+
+		# creating events, overlapped structures and a buffer for reading and writing
+		hEvent_read = win32event.CreateEvent(None, 0, 0, None)
+		overlapped_read = pywintypes.OVERLAPPED()
+		overlapped_read.hEvent = hEvent_read
+		overlapped_write = pywintypes.OVERLAPPED()
+		message = win32file.AllocateReadBuffer(4096)
+
+		while not self._stop:
+			try:
+				# Overlapped/async read, it either blocks or returns pending
+				hr, _ = win32file.ReadFile(self.tunnel, message, overlapped_read)
+				if (hr == winerror.ERROR_IO_PENDING):
+					# when the event gets signalled or timeout happens it will return
+					rc = win32event.WaitForSingleObject(hEvent_read, int(self.timeout*1000))
+					if rc == winerror.WAIT_TIMEOUT:
+						# timed out, just rerun read
+						continue
+
+					if rc == win32event.WAIT_OBJECT_0:
+						# read happened, packet is in "message"
+						if (overlapped_read.InternalHigh < 4) or (message[0:1] != "\x45"): #Only care about IPv4
+							# too small which should not happen or not IPv4, so we just drop it.
+							continue
+
+						# reading out the packet from the buffer and discarding the rest
+						readytogo = message[0:overlapped_read.InternalHigh]
+
+				# looking for client
+				for c in self.clients:
+					if c.get_private_ip_addr() == readytogo[16:20]:
+						# client found, writing packet on client's pipe
+						# ignoring outcome, it is async so it will happen when it will happen ;)
+						win32file.WriteFile(c.get_pipe_w(), readytogo, overlapped_write)
+
+			except win32api.error as e:
+				if e.args[0] == 995:
+					common.internal_print("Interface disappered, exiting PS thread: {0}".format(e), -1)
+					self.stop()
+					continue
+
+				common.internal_print("PS Exception: {0}".format(e), -1)
+
+		return
+
 
 	# stop the so called infinite loop
 	def stop(self):
