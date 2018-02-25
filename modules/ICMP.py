@@ -191,7 +191,7 @@ class ICMP(Stateless_module.Stateless_module):
 
 		return message[3:], addr, identifier, sequence, queue_length
 
-	def communication(self, is_check):
+	def communication_unix(self, is_check):
 		sequence = 0
 		identifier = 0
 		self.rlist = [self.comms_socket]

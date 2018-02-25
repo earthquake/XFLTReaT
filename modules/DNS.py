@@ -856,7 +856,7 @@ class DNS(UDP_generic.UDP_generic):
 
 		return message, addr, queue_length, userid
 
-	def communication(self, is_check):
+	def communication_unix(self, is_check):
 		self.rlist = [self.comms_socket]
 		unauth_counter = 0.0
 		if not self.serverorclient and self.tunnel:

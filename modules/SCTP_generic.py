@@ -140,15 +140,11 @@ class SCTP_generic_thread(Stateful_module.Stateful_thread):
 			self.comms_socket.close()
 		except:
 			pass
-		try:
-			os.close(self.packetselector.get_pipe_w())		
-		except:
-			pass
 
 		if self.serverorclient:
 			self.packetselector.delete_client(self.client)
 
-	def communication(self, is_check):
+	def communication_unix(self, is_check):
 		rlist = [self.comms_socket]
 		wlist = []
 		xlist = []

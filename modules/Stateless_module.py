@@ -64,6 +64,19 @@ class Stateless_module(Generic_module):
 			6  : [common.CONTROL_DUMMY_PACKET, 	self.controlchannel.cmh_dummy_packet, 1, True, True]
 		}
 
+		self.packet_writer = self.packet_writer_default
+		self.packet_reader = self.packet_reader_default
+		self.communication = self.communication_unix
+
+		if self.os_type == common.OS_WINDOWS:
+			self.packet_writer = self.packet_writer_win
+			self.communication = self.communication_win
+			self.packet_reader = None
+
+		if self.os_type == common.OS_MACOSX:
+			self.packet_writer = self.packet_writer_mac
+			self.packet_reader = self.packet_reader_mac
+
 		return
 
 	def auth_ok_setup(self, additional_data):
@@ -92,21 +105,40 @@ class Stateless_module(Generic_module):
 
 		return
 
-
 	# This function writes the packet to the tunnel.
+	# Windows version of the packet writer
+	def packet_writer_win(self, packet):
+		import pywintypes
+		import win32file
+
+		overlapped_write = pywintypes.OVERLAPPED()
+		win32file.WriteFile(self.tunnel_w, packet, overlapped_write)
+		return
+
 	# on MacOS(X) utun, all packets needs to be prefixed with 4 specific bytes
-	def packet_writer(self, packet):
-		if self.os_type == common.OS_MACOSX:
-			packet = "\x00\x00\x00\x02"+packet
-		os.write(self.tunnel, packet)
+	def packet_writer_mac(self, packet):
+		packet = "\x00\x00\x00\x02"+packet
+		os.write(self.tunnel_w, packet)
+
+	# default packet writer for Linux
+	def packet_writer_default(self, packet):
+		os.write(self.tunnel_w, packet)
 
 	# This function reades the packet from the tunnel.
 	# on MacOS(X) utun, all packets needs to be prefixed with 4 specific bytes
 	# this will take off the prefix if that is needed
-	def packet_reader(self, tunnel, first_read, serverorclient):
+	# first_read True: discard the first 4 bytes / utun related
+	# serverorclient 1: server, there is no 4byte prefix, it comes fro the PS
+	#				 0: client, it comes from the tunnel iface directly
+	def packet_reader_mac(self, tunnel, first_read, serverorclient):
 		packet = os.read(tunnel, 4096)
-		if (self.os_type == common.OS_MACOSX) and first_read and not serverorclient:
+		if first_read and not serverorclient:
 			packet = packet[4:]
+		return packet
+
+	# for Linux and other unices
+	def packet_reader_default(self, tunnel, first_read, serverorclient):
+		packet = os.read(tunnel, 4096)
 		return packet
 
 	# TODO: placeholder function to transform packets back and forth.
@@ -159,7 +191,13 @@ class Stateless_module(Generic_module):
 	# PLACEHOLDER: communication function
 	# What comes here: this is the tricky part, where everything is handled 
 	# that matters.
-	def communication(self, is_check):
+	# for unices
+	def communication_unix(self, is_check):
+
+		return
+
+	# for windows
+	def communication_win(self, is_check):
 
 		return
 

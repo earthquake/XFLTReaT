@@ -111,7 +111,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 
 		return message[2:], addr
 
-	def communication(self, is_check):
+	def communication_unix(self, is_check):
 		self.rlist = [self.comms_socket]
 		if not self.serverorclient and self.tunnel:
 				self.rlist = [self.tunnel, self.comms_socket]
