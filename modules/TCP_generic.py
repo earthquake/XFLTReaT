@@ -56,6 +56,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 		self.module_name = module_name
 		self.check_result = None
 		self.timeout = 3.0
+		self.partial_message = ""
 
 		self.client = None
 		self.authenticated = False
@@ -98,55 +99,161 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 			transformed_message = self.transform(common.DATA_CHANNEL_BYTE+message, 1)
 
 		common.internal_print("TCP sent: {0}".format(len(transformed_message)), 0, self.verbosity, common.DEBUG)
-		
-		return self.comms_socket.send(struct.pack(">H", len(transformed_message))+transformed_message)
+
+		# WORKAROUND?!
+		# Windows: It looks like when the buffer fills up the OS does not do
+		# congestion control, instead throws and exception/returns with
+		# WSAEWOULDBLOCK which means that we need to try it again later.
+		# So we sleep 100ms and hope that the buffer has more space for us.
+		# If it does then it sends the data, otherwise tries it in an infinite
+		# loop...
+		while True:
+			try:
+				return self.comms_socket.send(struct.pack(">H", len(transformed_message))+transformed_message)
+			except socket.error as se:
+				if se.args[0] == 10035: # WSAEWOULDBLOCK
+					time.sleep(0.1)
+					pass
+				else:
+					raise
+
 
 	def recv(self):
-		message = ""
-		length2b = self.comms_socket.recv(2, socket.MSG_PEEK)
+		messages = []
+		message = self.partial_message + self.comms_socket.recv(4096)
 
-		if len(length2b) == 0:
-			if self.serverorclient:
-				common.internal_print("Client lost. Closing down thread.", -1)
+		if len(message) < 2:
+			return messages
+
+		while True:
+			length = struct.unpack(">H", message[0:2])[0]+2
+			if len(message) >= length:
+				messages.append(self.transform(message[2:length], 0))
+				common.internal_print("TCP read22: {0}".format(len(messages[len(messages)-1])), 0, self.verbosity, common.DEBUG)
+				self.partial_message = ""
+				message = message[length:]
 			else:
-				common.internal_print("Server lost. Closing down.", -1)
-			self.stop()
-			self.cleanup()
+				self.partial_message = message
+				break
 
-			return ""
+			if len(message) < 2:
+				self.partial_message = message
+				break
 
-		if len(length2b) != 2:
-
-			return ""
-
-		length = struct.unpack(">H", length2b)[0]+2
-		received = 0
-		while received < length:
-			message += self.comms_socket.recv(length-received)
-			received = len(message)
-
-		if (length != len(message)):
-			common.internal_print("Error length mismatch", -1)
-			return ""
-		common.internal_print("TCP read: {0}".format(len(message)), 0, self.verbosity, common.DEBUG)
-
-		return self.transform(message[2:],0)
-
+		return messages
 
 	def cleanup(self):
 		try:
 			self.comms_socket.close()
 		except:
 			pass
-		try:
-			os.close(self.packetselector.get_pipe_w())
-		except:
-			pass
 
 		if self.serverorclient:
 			self.packetselector.delete_client(self.client)
 
-	def communication(self, is_check):
+	def communication_win(self, is_check):
+		import win32event
+		import win32file
+		import win32api
+		import pywintypes
+		import winerror
+
+		# event for the socket
+		hEvent_sock = win32event.CreateEvent(None, 0, 0, None)
+		win32file.WSAEventSelect(self.comms_socket, hEvent_sock, win32file.FD_READ)
+
+		# event, overlapped struct for the pipe or tunnel
+		hEvent_pipe = win32event.CreateEvent(None, 0, 0, None) # for reading from the pipe
+		overlapped_pipe = pywintypes.OVERLAPPED()
+		overlapped_pipe.hEvent = hEvent_pipe
+
+		# buffer for the packets
+		message_readfile = win32file.AllocateReadBuffer(4096)
+
+		# showing if we already async reading or not
+		not_reading_already = True
+		first_run = True
+		while not self._stop:
+			try:
+				if not self.tunnel_r:
+					# user is not authenticated yet, so there is no pipe
+					# only checking the socket for data
+					rc = win32event.WaitForSingleObject(hEvent_sock, int(self.timeout*1000))
+				else:
+					# client mode so we have the socket and tunnel as well
+					# or the client authenticated and the pipe was created
+					if first_run or not_reading_already:
+						# no ReadFile was called before or finished, so we
+						# are calling it again
+						hr, _ = win32file.ReadFile(self.tunnel_r, message_readfile, overlapped_pipe)
+						not_reading_already = first_run = False
+
+					if (hr == winerror.ERROR_IO_PENDING):
+						# well, this was an async read, so we need to wait
+						# until it happens
+						rc = win32event.WaitForMultipleObjects([hEvent_sock, hEvent_pipe], 0, int(self.timeout*1000))
+						if rc == winerror.WAIT_TIMEOUT:
+							# timed out, just rerun and wait
+							continue
+					else:
+						if hr != 0:
+							common.internal_print("TCP ReadFile failed: {0}".format(hr), -1)
+							raise
+
+				if rc < 0x80: # STATUS_ABANDONED_WAIT_0
+					if rc == 0:
+						# socket got signalled
+						not_reading_already = False
+						messages = self.recv()
+						for message in messages:
+							# looping through the messages from socket
+							if len(message) == 0:
+								# this could happen when the socket died or
+								# partial message was read.
+								continue
+
+							if common.is_control_channel(message[0:1]):
+								# parse control messages
+								if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], None):
+									continue
+								else:
+									self.stop()
+									break
+
+							if self.authenticated:
+								try:
+									# write packet to the tunnel
+									self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
+								except OSError as e:
+									print e # wut?
+								except Exception as e:
+									if e.args[0] == 995:
+										common.internal_print("Interface disappered, exiting thread: {0}".format(e), -1)
+										self.stop()
+										continue
+
+									print "exception2 %d" % len(message[len(common.CONTROL_CHANNEL_BYTE):])
+									print e
+					if rc == 1:
+						# pipe/tunnel got signalled
+						not_reading_already = True
+						if (overlapped_pipe.InternalHigh < 4) or (message_readfile[0:1] != "\x45"): #Only care about IPv4
+							# too small which should not happen or not IPv4, so we just drop it.
+							continue
+
+						# reading out the packet from the buffer and discarding the rest
+						readytogo = message_readfile[0:overlapped_pipe.InternalHigh]
+						self.send(common.DATA_CHANNEL_BYTE, readytogo, None)
+
+			except win32api.error as e:
+				common.internal_print("TCP Exception: {0}".format(e), -1)
+
+		self.cleanup()
+
+		return True
+
+
+	def communication_unix(self, is_check):
 		rlist = [self.comms_socket]
 		wlist = []
 		xlist = []
@@ -177,24 +284,27 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 							self.send(common.DATA_CHANNEL_BYTE, readytogo, None)
 
 					if (s is self.comms_socket) and not self._stop:
-						message = self.recv()
-						if len(message) == 0:
-							continue
-
-						if common.is_control_channel(message[0:1]):
-							if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], None):
+						messages = self.recv()
+						for message in messages:
+							if len(message) == 0:
 								continue
-							else:
-								self.stop()
-								break
 
-						if self.authenticated:
-							try:
-								self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
-							except OSError as e:
-								print e # wut?
-							except Exception as e:
-								print e
+							if common.is_control_channel(message[0:1]):
+								if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], None):
+									continue
+								else:
+									self.stop()
+									break
+
+							if self.authenticated:
+								try:
+									self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
+								except OSError as e:
+									print "self.partial_message: %r" % self.partial_message
+									print "message: %r" % message
+									print e # wut?
+								except Exception as e:
+									print e
 
 			except (socket.error, OSError, IOError):
 				if self.serverorclient:
@@ -214,6 +324,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 
 		return True
 
+
 class TCP_generic(Stateful_module.Stateful_module):
 
 	module_name = "TCP generic"
@@ -222,7 +333,7 @@ class TCP_generic(Stateful_module.Stateful_module):
 		This module lacks of any encryption or encoding, which comes to the interface
 		goes to the socket back and forth. Nothing special.
 		"""
-	module_os_support = common.OS_LINUX | common.OS_MACOSX
+	module_os_support = common.OS_LINUX | common.OS_MACOSX | common.OS_WINDOWS
 
 	def __init__(self):
 		super(TCP_generic, self).__init__()
@@ -241,7 +352,12 @@ class TCP_generic(Stateful_module.Stateful_module):
 		# unfortunately close() does not help on the block
 		try:
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-			server_socket.connect((self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
+			serverbind = self.config.get("Global", "serverbind")
+			if serverbind == "0.0.0.0":
+				# windows does not like to connect to 0.0.0.0
+				serverbind = "127.0.0.1"
+
+			server_socket.connect((serverbind, int(self.config.get(self.get_module_configname(), "serverport"))))
 		except:
 			pass
 
@@ -260,6 +376,7 @@ class TCP_generic(Stateful_module.Stateful_module):
 			return False
 
 		return True
+
 
 	def serve(self):
 		client_socket = server_socket = None
@@ -314,7 +431,7 @@ class TCP_generic(Stateful_module.Stateful_module):
 				client_fake_thread.do_logoff()
 			self.cleanup(server_socket)
 			raise
-		except socket.error:
+		except socket.error as e:
 			common.internal_print("Connection error: {0}".format(self.get_module_name()), -1)
 			self.cleanup(server_socket)
 			raise
