@@ -324,7 +324,6 @@ def init_client_stateful(msg, addr, client, packetselector, stopfp):
 		overlapped = pywintypes.OVERLAPPED()
 		# setting up writable named pipe
 		mailslotname = "\\\\.\\mailslot\\XFLTReaT_{0}".format(socket.inet_ntoa(client_private_ip))
-		print mailslotname
 
 		mailslot_r = win32file.CreateMailslot(mailslotname, 0, -1, None)
 		if (mailslot_r == None) or (mailslot_r == win32file.INVALID_HANDLE_VALUE):
