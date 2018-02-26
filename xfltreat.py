@@ -299,8 +299,8 @@ Balazs Bucsay [[@xoreipeip]]
 		if not module_threads:
 			common.internal_print("Exiting...")
 		else:
-			time.sleep(0.5)
 			try:
+				time.sleep(0.5)
 				common.internal_print("Please use CTRL+C to exit...")
 				# found no better solution to keep the main thread and catch CTRL+C
 				# if you know any, you know how to tell me ;)
