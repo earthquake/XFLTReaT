@@ -217,7 +217,7 @@ def check_router_settings(config):
 
 		if router_value != 1:
 			internal_print("The IP forwarding is not set.", -1)
-			internal_print("Please set the IPEnableRouter value to 1 under the following registry key:\n\tHKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\\n\tMoreover you need to enable and start the \"Routing and Remote Access\" service.\n")
+			internal_print("Please set the IPEnableRouter value to 1 with the following command:\n\treg add HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters /t REG_DWORD /v IPEnableRouter /d 1 /f\n\tMoreover you need to enable and start the \"Routing and Remote Access\" service.\n")
 
 			return False
 
