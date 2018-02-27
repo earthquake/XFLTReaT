@@ -112,17 +112,17 @@ class Stateless_module(Generic_module):
 		import win32file
 
 		overlapped_write = pywintypes.OVERLAPPED()
-		win32file.WriteFile(self.tunnel_w, packet, overlapped_write)
+		win32file.WriteFile(self.tunnel, packet, overlapped_write)
 		return
 
 	# on MacOS(X) utun, all packets needs to be prefixed with 4 specific bytes
 	def packet_writer_mac(self, packet):
 		packet = "\x00\x00\x00\x02"+packet
-		os.write(self.tunnel_w, packet)
+		os.write(self.tunnel, packet)
 
 	# default packet writer for Linux
 	def packet_writer_default(self, packet):
-		os.write(self.tunnel_w, packet)
+		os.write(self.tunnel, packet)
 
 	# This function reades the packet from the tunnel.
 	# on MacOS(X) utun, all packets needs to be prefixed with 4 specific bytes

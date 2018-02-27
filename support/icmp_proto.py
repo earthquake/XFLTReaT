@@ -120,3 +120,15 @@ class ICMP_Client(client.Client):
 
 	def get_ICMP_sent_sequence(self):
 		return self.ICMP_sent_sequence
+
+	# function pointer to the module's stop()
+	# placeholder, no need for this since this is a Stateless module
+	def set_stopfp(self, stopfp):
+
+		return
+
+	# if stateless and stop() saved, call it
+	# placeholder, no need for this since this is a Stateless module
+	def call_stopfp(self):
+
+		return
