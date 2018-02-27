@@ -55,8 +55,8 @@ For Ubuntu/Debian the following package might needed:
 
 ### a few things to note ###
 * python 2.7
-* Linux only
-* root privs needed
+* supported OS list: Linux, MacOS(X), Windows
+* root/Administrator privs needed
 
 ### side notes to expand ##
 * server and check functionality can handle all modules enabled in the config.
