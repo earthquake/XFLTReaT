@@ -298,6 +298,7 @@ Balazs Bucsay [[@xoreipeip]]
 		# No modules are running
 		if not module_threads:
 			common.internal_print("Exiting...")
+			ps.stop()
 		else:
 			try:
 				time.sleep(0.5)
