@@ -129,7 +129,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 			length = struct.unpack(">H", message[0:2])[0]+2
 			if len(message) >= length:
 				messages.append(self.transform(message[2:length], 0))
-				common.internal_print("TCP read22: {0}".format(len(messages[len(messages)-1])), 0, self.verbosity, common.DEBUG)
+				common.internal_print("TCP read: {0}".format(len(messages[len(messages)-1])), 0, self.verbosity, common.DEBUG)
 				self.partial_message = ""
 				message = message[length:]
 			else:
@@ -232,8 +232,6 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 										self.stop()
 										continue
 
-									print "exception2 %d" % len(message[len(common.CONTROL_CHANNEL_BYTE):])
-									print e
 					if rc == 1:
 						# pipe/tunnel got signalled
 						not_reading_already = True
@@ -300,8 +298,6 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 								try:
 									self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
 								except OSError as e:
-									print "self.partial_message: %r" % self.partial_message
-									print "message: %r" % message
 									print e # wut?
 								except Exception as e:
 									print e
@@ -348,7 +344,7 @@ class TCP_generic(Stateful_module.Stateful_module):
 			for t in self.threads:
 				t.stop()
 		
-		# not so nice solution to get rid of the block of accept()
+		# not so nice solution to get rid of the block of listen()
 		# unfortunately close() does not help on the block
 		try:
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

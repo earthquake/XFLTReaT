@@ -237,7 +237,7 @@ class SCTP_generic(Stateful_module.Stateful_module):
 			for t in self.threads:
 				t.stop()
 		
-		# not so nice solution to get rid of the block of accept()
+		# not so nice solution to get rid of the block of listen()
 		# unfortunately close() does not help on the block
 		try:
 			server_socket = self.sctp.sctpsocket_tcp(socket.AF_INET)
