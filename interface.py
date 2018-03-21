@@ -48,15 +48,18 @@ class Interface():
 		common.OS_LINUX		: [self.lin_init, self.lin_tun_alloc,
 			self.lin_set_ip_address, self.lin_set_mtu, self.lin_close_tunnel,
 			self.lin_check_default_route, self.lin_set_default_route,
-			self.lin_set_intermediate_route, self.lin_restore_routes],
+			self.lin_set_intermediate_route, self.lin_restore_routes,
+			self.lin_set_split_route, self.lin_del_split_route],
 		common.OS_MACOSX	: [self.mac_init, self.mac_tun_alloc,
 			self.mac_set_ip_address, self.mac_set_mtu, self.mac_close_tunnel,
 			self.mac_check_default_route, self.mac_set_default_route,
-			self.mac_set_intermediate_route, self.mac_restore_routes],
+			self.mac_set_intermediate_route, self.mac_restore_routes,
+			self.mac_set_split_route, self.mac_del_split_route],
 		common.OS_WINDOWS	: [self.win_init, self.win_tun_alloc,
 			self.win_set_ip_address, self.win_set_mtu, self.win_close_tunnel,
 			self.win_check_default_route, self.win_set_default_route,
-			self.win_set_intermediate_route, self.win_restore_routes],
+			self.win_set_intermediate_route, self.win_restore_routes,
+			self.win_set_split_route, self.win_del_split_route],
 		}
 		os_type = common.get_os_type()
 		if not (os_type in OSFP_table):
@@ -92,6 +95,10 @@ class Interface():
 		self.set_intermediate_route = OSFP_table[os_type][7]
 		# restoring default route
 		self.restore_routes 		= OSFP_table[os_type][8]
+		# set split routes
+		self.set_split_route 		= OSFP_table[os_type][9]
+		# del split routes
+		self.del_split_route 		= OSFP_table[os_type][10]
 
 
 	# LINUX #########################################################
@@ -219,6 +226,14 @@ class Interface():
 
 		return
 
+	def lin_set_split_route(self, scope, ip):
+		for entry in scope:
+			self.ip.route('add', gateway=ip, dst=entry[0], mask=int(entry[2]))
+
+		return
+
+	def lin_del_split_route(self, scope, ip):
+		return
 
 
 	# MAC OS (X) ####################################################
@@ -460,6 +475,18 @@ class Interface():
 
 		return
 
+	def mac_set_split_route(self, scope, ip):
+		for entry in scope:
+			ps = subprocess.Popen(["route", "add", "{0}/{1}".format(entry[0], entry[2]), ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+			(stdout, stderr) = ps.communicate()
+			if stderr:
+				common.internal_print("Error: adding new split route: {0}".format(stderr), -1)
+				sys.exit(-1)
+		return
+
+	def mac_del_split_route(self, scope, ip):
+		return
+
 
 
 	# WINDOWS #######################################################
@@ -508,6 +535,26 @@ class Interface():
 			sys.exit(-1)
 
 		return iface_name
+
+	def WIN_get_interface_index(self):
+		iface_name = self.WIN_get_subinterface_name()
+		ps = subprocess.Popen(["netsh", "interface", "ipv4", "show", "interfaces"], stdout=subprocess.PIPE,
+			stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+
+
+		if stderr != "":
+			common.internal_print("Show interfaces. netsh failed: {0}".format(stdout), -1)
+			sys.exit(-1)
+
+		for line in stdout.split("\n"):
+			if iface_name in line:
+				i = 0
+				while line[i:i+1] == " ":
+					i += 1
+				return int(line[i:].split(" ")[0])
+
+		return -1
 
 	def WIN_CTL_CODE(self, device_type, function, method, access):
 	    return (device_type << 16) | (access << 14) | (function << 2) | method;
@@ -699,4 +746,29 @@ class Interface():
 			common.internal_print("Add original default route failed: {0}".format(stderr), -1)
 			sys.exit(-1)
 
+		return
+
+	def win_set_split_route(self, scope, ip):
+		iface_idx = self.WIN_get_interface_index()
+		ps = subprocess.Popen(["route", "-p", "DELETE", "0.0.0.0", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			common.internal_print("Delete default route failed: {0}".format(stderr), -1)
+			sys.exit(-1)
+
+		for entry in scope:
+			ps = subprocess.Popen(["route", "ADD", entry[0], "MASK", entry[1], ip, "IF", "{0}".format(iface_idx)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+			(stdout, stderr) = ps.communicate()
+			if stderr:
+				common.internal_print("Add split route to server failed: {0}".format(stderr), -1)
+				sys.exit(-1)
+		return
+
+	def win_del_split_route(self, scope, ip):
+		for entry in scope:
+			ps = subprocess.Popen(["route", "DELETE", entry[0], ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+			(stdout, stderr) = ps.communicate()
+			if stderr:
+				common.internal_print("Delete split route to server failed: {0}".format(stderr), -1)
+				sys.exit(-1)
 		return

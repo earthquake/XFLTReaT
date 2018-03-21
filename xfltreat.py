@@ -59,6 +59,7 @@ Options:
   -c\t--client\t\tturn on client mode
   \t--check\t\t\tcheck modules on server side
   \t--config\t\tspecify config file (default: xfltreat.conf)
+  \t--split\t\t\tsplit tunnel mode (specify scope in config)
   \t--verbose\t\t1 = verbose mode
   \t\t\t\t2 = debug mode"""
 
@@ -82,9 +83,10 @@ Balazs Bucsay [[@xoreipeip]]
 		self.servermode = 0
 		self.clientmode = 0
 		self.checkmode = 0
+		self.splitmode = 0 # split tunnelling
 
 		self.short = "hsc"
-		self.long = ["help", "server", "client", "check", "config=", "verbose="]
+		self.long = ["help", "server", "client", "check", "split", "config=", "verbose="]
 
 		# modules that should not be loaded
 		self.forbidden_modules = ["Generic_module", "Stateful_module", "Stateless_module"]
@@ -112,6 +114,8 @@ Balazs Bucsay [[@xoreipeip]]
 				self.checkmode = 1
 			elif opt in ("--config"):
 				self.configfile = arg
+			elif opt in ("--split"):
+				self.splitmode = 1
 			elif opt in ("--verbose"):
 				try:
 					self.verbosity = int(arg)
@@ -151,6 +155,12 @@ Balazs Bucsay [[@xoreipeip]]
 		#sanity check for the auth module
 		if not auth_module.sanity_check(config):
 			sys.exit(-1)
+
+		if self.splitmode:
+			self.scope = common.parse_scope_file(config.get("Global", "scope"))
+			if self.scope == []:
+				common.internal_print("Split tunnelling mode enabled, but no scope was defined or entries were invalid", -1)
+				sys.exit(-1)
 
 		# Check system config for routing. If the OS was not set up for IP 
 		# forwarding then we need to exit.
@@ -229,7 +239,10 @@ Balazs Bucsay [[@xoreipeip]]
 			client_tunnel = interface.tun_alloc(config.get("Global", "clientif"), interface.IFF_TUN|interface.IFF_NO_PI)
 			interface.set_ip_address(config.get("Global", "clientif"), 
 				config.get("Global", "clientip"), config.get("Global", "serverip"), config.get("Global", "clientnetmask"))
-			interface.set_default_route(config.get("Global", "remoteserverip"), config.get("Global", "clientip"), config.get("Global", "serverip"))
+			if not self.splitmode:
+				interface.set_default_route(config.get("Global", "remoteserverip"), config.get("Global", "clientip"), config.get("Global", "serverip"))
+			else:
+				interface.set_split_route(self.scope, config.get("Global", "serverip"))
 			interface.set_mtu(config.get("Global", "clientif"), int(config.get("Global", "mtu")))
 			common.internal_print("Please use CTRL+C to exit...")
 
@@ -264,7 +277,7 @@ Balazs Bucsay [[@xoreipeip]]
 					# if the module requires an indirect connection (proxy, 
 					# dns) then we need to amend the routing table
 					intermediate_hop = m.get_intermediate_hop(config)
-					if intermediate_hop:
+					if intermediate_hop and (not self.splitmode):
 						remoteserverip = intermediate_hop
 						interface.set_intermediate_route(config.get("Global", "remoteserverip"), remoteserverip)
 
@@ -274,25 +287,40 @@ Balazs Bucsay [[@xoreipeip]]
 						m.connect()
 
 						# client finished, closing down tunnel and restoring routes
-						interface.close_tunnel(client_tunnel)
+					interface.close_tunnel(client_tunnel)
 
-					interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
+					if self.splitmode:
+						interface.del_split_route(self.scope, config.get("Global", "serverip"))
+					else:
+						interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
 				except KeyboardInterrupt:
 					# CTRL+C was pushed
 					interface.close_tunnel(client_tunnel)
-					interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
+					
+					if self.splitmode:
+						interface.del_split_route(self.scope, config.get("Global", "serverip"))
+					else:
+						interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
 					pass
 				except socket.error as e:
 					# socket related error
 					interface.close_tunnel(client_tunnel)
-					interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
+
+					if self.splitmode:
+						interface.del_split_route(self.scope, config.get("Global", "serverip"))
+					else:
+						interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
 					if e.errno == errno.ECONNREFUSED:
 						common.internal_print("Socket does not seem to answer.", -1)
 					else:
 						common.internal_print("Socket died, probably the server went down. ({0})".format(e.errno), -1)
 				except:
 					interface.close_tunnel(client_tunnel)
-					interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
+
+					if self.splitmode:
+						interface.del_split_route(self.scope, config.get("Global", "serverip"))
+					else:
+						interface.restore_routes(remoteserverip, config.get("Global", "clientip"), config.get("Global", "serverip"))
 					raise
 
 		# No modules are running

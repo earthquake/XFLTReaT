@@ -285,6 +285,13 @@ def config_sanity_check(config, serverorclient):
 
 			return False
 
+	if config.has_option("Global", "scope"):
+		scopefile = config.get("Global", "scope")
+		if not os.path.isfile(scopefile) and scopefile:
+			internal_print("File '{0}' does not exists. Delete 'scope' option from config or create scope file.".format(scopefile), -1)
+
+			return False
+
 	return True
 
 # dummy function to check whether it is control channel or not.
@@ -431,6 +438,72 @@ def is_ipv4(s):
 def is_ipv6(s):
 	too_long = "^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$"
 	return bool(re.match(too_long, s))
+
+
+def check_line_type(line):
+	# check if it looks valid
+	if not bool(re.match("^([0-9\.\-/]*)$", line)):
+		return 0
+
+	# ip/mask format
+	if bool(re.match("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(/[0-9]{1,2})$", line)):
+		return 1
+
+	# x.y.z.w-v format
+	if bool(re.match("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\-[0-9]{1,3})$", line)):
+		return 2
+
+	# ip format
+	if bool(re.match("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$", line)):
+		return 3
+
+
+
+	return -1
+
+def parse_scope_file(filename):
+	if not filename:
+		return []
+
+	f = open(filename, "r")
+	content = f.read()
+	f.close()
+
+	lines = content.split("\n")
+	scope = []
+
+	for line in lines:
+		if line:
+			if line[0:1] == "#":
+				# skip comments
+				continue
+
+			# get type of addressing, parse it accordingly
+			type_ = check_line_type(line)
+			if (type_ == 0) or (type_ == -1):
+				internal_print("Erroneous line in scope definition: {0}".format(line), -1)
+
+			if type_ == 1:
+				regexp = re.match("^([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})/([0-9]{1,3})$", line)
+				range_ip = struct.unpack(">I", socket.inet_aton(regexp.group(1)))[0]
+				network = socket.inet_ntoa(struct.pack(">I", range_ip & ((2**int(regexp.group(2)))-1)<<32-int(regexp.group(2))))
+				add = (network, socket.inet_ntoa(struct.pack(">I", ((2**int(regexp.group(2)))-1)<<32-int(regexp.group(2)))), regexp.group(2))
+				if add not in scope:
+					scope.append(add)
+
+			if type_ == 2:
+				regexp = re.match("^([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\.([0-9]{1,3})\-([0-9]{1,3})$", line)
+				for i in xrange(int(regexp.group(2)), int(regexp.group(3))+1):
+					add = ("{0}.{1}".format(regexp.group(1), i), "255.255.255.255", "32")
+					if add not in scope:
+						scope.append(add)
+
+			if type_ == 3:
+				add = (line, "255.255.255.255", "32")
+				if add not in scope:
+					scope.append(add)
+
+	return scope
 
 # ANSI escape codes are only supported from version 10
 if get_os_type() == OS_WINDOWS:
