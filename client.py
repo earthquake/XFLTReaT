@@ -42,6 +42,7 @@ class Client():
 		self.pipe_w = None
 		self.pipe_r_fd = None
 		self.pipe_w_fd = None
+		self.stopfp = None
 		#TODO
 		self.authenticated = False
 		self.encryption_key = None
