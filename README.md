@@ -13,56 +13,32 @@ This is just one thing of many things that was missing from the Internet. If you
 * DNS (A/CNAME, PRIVATE, NULL) - Proof of Concept
 * RDP (Windows only)
 
-### Available versions ###
+### TL;DR ###
 
-At the moment there are two different branches of the framework. The master branch is a somewhat stable version (v0.1) without the DNS module. The other branch is called next-version and that has the newer version (v0.2), which includes DNS support for a few records (A/CNAME, PRIVATE, NULL). This branch has not been tested thoroughly yet, please respect that before making an opinion about the source code and framework.
+If you want to: 
+* get unrestricted Internet access from restricted networks
+* exfiltrate data over a noisy side channel
+* use a custom protocol to tunnel data
+* etc.
 
-To have a somewhat stable release (without DNS), please use:
+Then this could be your ultimate tool.
+For more information click [HERE](https://github.com/earthquake/XFLTReaT/wiki/The-Framework).
 
-\# git clone https://github.com/earthquake/xfltreat/
+### Steps to use ###
+* [Grab the framework](https://github.com/earthquake/XFLTReaT/wiki/Installation)
+* [Install the requirements](https://github.com/earthquake/XFLTReaT/wiki/Installation)
+* Configure your OS
+    * [Linux](https://github.com/earthquake/XFLTReaT/wiki/Linux)
+    * [MacOS(X)](https://github.com/earthquake/XFLTReaT/wiki/MacOS(X))
+    * [Windows](https://github.com/earthquake/XFLTReaT/wiki/Windows)
+* [Configure the framework](https://github.com/earthquake/XFLTReaT/wiki/Configuration)
+* Enjoy
 
-To get the DNS support from the next version branch (which was not tested thoroughly, please keep that in mind):
-
-\# git clone https://github.com/earthquake/xfltreat/
-
-\# cd xfltreat
-
-\# git checkout -b next-version v0.2
-
-To configure DNS please check the DNS_notes.md.
-
-### Setup ###
-* \# git clone https://github.com/earthquake/xfltreat/
-* \# pip install -r requirements.txt
-* edit xfltreat.conf
-* \# server side: python xfltreat.py
-* \# client side: python xfltreat.py --client
-
-### Set up your linux box as a server ###
-Enable IP forwarding as **root** by using either:  
-\# sysctl -w net.ipv4.ip_forward=1  
-or  
-\# echo 1 > /proc/sys/net/ipv4/ip_forward  
-
-then set up iptables to do the NAT'ing for you:  
-\# iptables -t nat -A POSTROUTING -s 10.9.0.0/24 -o eth0 -j MASQUERADE
-
-### SCTP and NAT ###
-In case you would like to use SCTP on a NAT'd Linux environment, do not forget to insert the following kernel module:  
-\# modprobe nf_conntrack_proto_sctp
-
-For Ubuntu/Debian the following package might needed:
-* libsctp-dev
-
-### a few things to note ###
-* python 2.7
-* supported OS list: Linux, MacOS(X), Windows
-* root/Administrator privs needed
-
-### side notes to expand ##
-* server and check functionality can handle all modules enabled in the config.
-* client should have only one enabled.
+### A few things to note ###
+* Python 2.7
+* root/Administrator privileges are needed to run
 
 ### DISCLAMER ###
 The tool is not yet production grade, edge cases (and not that edge cases) are might not handled very well. There can be security issues in the code that has not been fixed. In case you manage to identify any, please contact me in private or create an issue on the Github page. 
 Mail: xfltreat _at_ rycon.hu
+
