@@ -1,5 +1,5 @@
 # XFLTReaT #
-This is just one thing of many things that was missing from the Internet. If you got tired of trying several tunnelling tools for each protocols, this must be your ~~tool~~^W framework.
+This is just one thing of many things that was missing from the Internet. If you got tired of trying several tunnelling tools for each protocols, this must be your ~~tool~~^W framework. If you are interested in the details, please read the [Wiki](https://github.com/earthquake/XFLTReaT/wiki).
 
 ### Available modules ###
 
@@ -22,6 +22,7 @@ If you want to:
 * etc.
 
 Then this could be your ultimate tool.
+
 For more information click [HERE](https://github.com/earthquake/XFLTReaT/wiki/The-Framework).
 
 ### Steps to use ###
