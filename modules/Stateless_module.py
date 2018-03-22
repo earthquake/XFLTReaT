@@ -1,3 +1,25 @@
+# MIT License
+
+# Copyright (c) 2017 Balazs Bucsay
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import sys
 
 if "Stateless_module.py" in sys.argv[0]:
@@ -18,11 +40,13 @@ import controlchannel
 import client
 import common
 import threading
+import checks
 
 class Stateless_module(Generic_module):
 	def __init__(self):
 		super(Stateless_module, self).__init__()
-		self.timeout = 3.0
+		self.checks = checks.Checks()
+		self.timeout = 1.0
 		self.controlchannel = controlchannel.ControlChannel()
 
 		# control message handlers
@@ -40,9 +64,22 @@ class Stateless_module(Generic_module):
 			6  : [common.CONTROL_DUMMY_PACKET, 	self.controlchannel.cmh_dummy_packet, 1, True, True]
 		}
 
+		self.packet_writer = self.packet_writer_default
+		self.packet_reader = self.packet_reader_default
+		self.communication = self.communication_unix
+
+		if self.os_type == common.OS_WINDOWS:
+			self.packet_writer = self.packet_writer_win
+			self.communication = self.communication_win
+			self.packet_reader = None
+
+		if self.os_type == common.OS_MACOSX:
+			self.packet_writer = self.packet_writer_mac
+			self.packet_reader = self.packet_reader_mac
+
 		return
 
-	def auth_ok_setup(self):
+	def auth_ok_setup(self, additional_data):
 
 		return
 
@@ -67,6 +104,42 @@ class Stateless_module(Generic_module):
 			common.delete_client_stateless(self.clients, c)
 
 		return
+
+	# This function writes the packet to the tunnel.
+	# Windows version of the packet writer
+	def packet_writer_win(self, packet):
+		import pywintypes
+		import win32file
+
+		overlapped_write = pywintypes.OVERLAPPED()
+		win32file.WriteFile(self.tunnel, packet, overlapped_write)
+		return
+
+	# on MacOS(X) utun, all packets needs to be prefixed with 4 specific bytes
+	def packet_writer_mac(self, packet):
+		packet = "\x00\x00\x00\x02"+packet
+		os.write(self.tunnel, packet)
+
+	# default packet writer for Linux
+	def packet_writer_default(self, packet):
+		os.write(self.tunnel, packet)
+
+	# This function reades the packet from the tunnel.
+	# on MacOS(X) utun, all packets needs to be prefixed with 4 specific bytes
+	# this will take off the prefix if that is needed
+	# first_read True: discard the first 4 bytes / utun related
+	# serverorclient 1: server, there is no 4byte prefix, it comes fro the PS
+	#				 0: client, it comes from the tunnel iface directly
+	def packet_reader_mac(self, tunnel, first_read, serverorclient):
+		packet = os.read(tunnel, 4096)
+		if first_read and not serverorclient:
+			packet = packet[4:]
+		return packet
+
+	# for Linux and other unices
+	def packet_reader_default(self, tunnel, first_read, serverorclient):
+		packet = os.read(tunnel, 4096)
+		return packet
 
 	# TODO: placeholder function to transform packets back and forth.
 	# encryption, encodings anything that should be done on the packet and 
@@ -104,7 +177,7 @@ class Stateless_module(Generic_module):
 	# What comes here: marking message (control or data), transforming (see
 	# transform()), prepending with length, sending on the appropriate channel
 
-	def send(self, type, message, additional_data):
+	def send(self, channel_type, message, additional_data):
 
 		return
 
@@ -115,22 +188,25 @@ class Stateless_module(Generic_module):
 
 		return
 
-	# PLACEHOLDER: handling control messages
-	# What comes here: All control messages have to be handled here
-	def handle_control_messages(self, message):
-
-		return
-
 	# PLACEHOLDER: communication function
 	# What comes here: this is the tricky part, where everything is handled 
 	# that matters.
-	def communication(self, is_check):
+	# for unices
+	def communication_unix(self, is_check):
 
 		return
 
+	# for windows
+	def communication_win(self, is_check):
+
+		return
+
+	# PLACEHOLDER: sanity check against the configuration
+	# if some of the values in the config are missing or invalid
+	# then it should return False
 	def sanity_check(self):
 		
-		return
+		return True
 
 	# PLACEHOLDER: server part of the module
 	# What comes here: setup, bind, listen, accept, fork/thread, cleanup
@@ -140,7 +216,7 @@ class Stateless_module(Generic_module):
 
 	# PLACEHOLDER: client part of the module
 	# What comes here: setup, connect, cleanup
-	def client(self):
+	def connect(self):
 
 		return
 

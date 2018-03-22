@@ -8,7 +8,10 @@ This is just one thing of many things that was missing from the Internet. If you
 * ICMP
 * SOCKS v4, 4a, 5
 * HTTP CONNECT
+* SCTP (by Darren Martyn @info_dox)
+* WebSocket
 * DNS (A/CNAME, PRIVATE, NULL) - Proof of Concept
+* RDP (Windows only)
 
 ### Available versions ###
 
@@ -44,10 +47,17 @@ or
 then set up iptables to do the NAT'ing for you:  
 \# iptables -t nat -A POSTROUTING -s 10.9.0.0/24 -o eth0 -j MASQUERADE
 
+### SCTP and NAT ###
+In case you would like to use SCTP on a NAT'd Linux environment, do not forget to insert the following kernel module:  
+\# modprobe nf_conntrack_proto_sctp
+
+For Ubuntu/Debian the following package might needed:
+* libsctp-dev
+
 ### a few things to note ###
 * python 2.7
-* Linux only
-* root privs needed
+* supported OS list: Linux, MacOS(X), Windows
+* root/Administrator privs needed
 
 ### side notes to expand ##
 * server and check functionality can handle all modules enabled in the config.

@@ -1,3 +1,25 @@
+# MIT License
+
+# Copyright (c) 2017 Balazs Bucsay
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import sys
 
 if "common.py" in sys.argv[0]:
@@ -9,27 +31,40 @@ import random
 import socket
 import os
 import re
+import platform
+import pkgutil
 
-DATA_CHANNEL_BYTE 	 = "\x01"
-CONTROL_CHANNEL_BYTE = "\x00"
+DATA_CHANNEL_BYTE	 = "\x00"
+CONTROL_CHANNEL_BYTE = "\x80"
 
-CONTROL_CHECK   		 = "XFLT>CHECK!"
-CONTROL_CHECK_RESULT 	 = "XFLT>CHECK_RESULT"
-CONTROL_AUTH    		 = "XFLT>AUTH!"
-CONTROL_AUTH_OK 		 = "XFLT>AUTH_OK"
-CONTROL_AUTH_NOTOK 		 = "XFLT>AUTH_NOTOK"
-CONTROL_LOGOFF 			 = "XFLT>LOGOFF!"
-CONTROL_DUMMY_PACKET	 = "XFLT>DUMMY_PACKET"
+CONTROL_CHECK 			= "XFLT>CHECK!"
+CONTROL_CHECK_RESULT 	= "XFLT>CHECK_RESULT"
+CONTROL_AUTH 			= "XFLT>AUTH!"
+CONTROL_AUTH_OK 		= "XFLT>AUTH_OK"
+CONTROL_AUTH_NOTOK 		= "XFLT>AUTH_NOTOK"
+CONTROL_LOGOFF 			= "XFLT>LOGOFF!"
+CONTROL_DUMMY_PACKET 	= "XFLT>DUMMY_PACKET"
 
-# severity levels:
+# Multi Operating System support values
+OS_UNKNOWN	= 0
+OS_LINUX 	= 1
+OS_MACOSX	= 2
+OS_WINDOWS	= 4
+OS_FREEBSD	= 8
+OS_OPENBSD	= 16
+OS_WHATNOT	= 32
+
+OS_SUPPORTED = OS_LINUX | OS_MACOSX | OS_WINDOWS
+
+# print severity levels:
 # 	0	always
 #	1	verbose (common.VERBOSE)
 #	2	debug   (common.DEBUG)
-# feedback levels:
+# print feedback levels:
 #	-1	negativ
 #	0	neutral
 #	1	positive
-
+colour = True
 VERBOSE = 1
 DEBUG   = 2
 def internal_print(message, feedback = 0, verbosity = 0, severity = 0):
@@ -38,13 +73,160 @@ def internal_print(message, feedback = 0, verbosity = 0, severity = 0):
 		debug = "DEBUG: "
 	if verbosity >= severity:
 		if feedback == -1:
-			prefix = "\033[91m[-]"
+			if colour:
+				prefix = "\033[91m[-]"
+			else:
+				prefix = "[-]"
 		if feedback == 0:
-			prefix = "\033[39m[*]"
+			if colour:
+				prefix = "\033[39m[*]"
+			else:
+				prefix = "[*]"
 		if feedback == 1:
-			prefix = "\033[92m[+]"
-		print "%s %s%s\033[39m" % (prefix, debug, message)
+			if colour:
+				prefix = "\033[92m[+]"
+			else:
+				prefix = "[+]"
+		if colour:
+			print "%s %s%s\033[39m" % (prefix, debug, message)
+		else:
+			print "%s %s%s" % (prefix, debug, message)
 
+# check if the OS is supported
+def os_support():
+	if OS_SUPPORTED & get_os_type():
+		return True
+	else:
+		internal_print("Sorry buddy, I am afraid that your OS is not yet supported", -1)
+		return False
+
+# check if the requirements are met
+def check_modules_installed():
+	reqs = []
+	os_type = get_os_type()
+
+	# reqs = [["module_name", "package_name"], [...]]
+	if os_type == OS_LINUX:
+		reqs = [["pyroute2","pyroute2"], ["sctp","sctp"]]
+	if os_type == OS_MACOSX:
+		reqs = []
+	if os_type == OS_WINDOWS:
+		reqs = [["win32file","pywin32"]]
+
+	allinstalled = True
+	for m in reqs:
+		if not pkgutil.find_loader(m[0]):
+			allinstalled = False
+			internal_print("The following python modules were not installed: {0}".format(m[1]), -1)
+
+	return allinstalled
+
+
+# get os type. No need to import 'platform' in every module this way.
+def get_os_type():
+	os_type = platform.system()
+	if os_type == "Linux":
+		return OS_LINUX
+
+	if os_type == "Darwin":
+		return OS_MACOSX
+
+	if os_type == "Windows":
+		return OS_WINDOWS
+
+	if os_type == "FreeBSD":
+		return OS_FREEBSD
+
+	if os_type == "OpenBSD":
+		return OS_OPENBSD
+
+	return OS_UNKNOWN
+
+# get the release of the OS
+def get_os_version():
+	return platform.version()
+
+# get the release of the OS
+def get_os_release():
+	return platform.release()
+
+# get the privilege level, True if it is enough to run.
+def get_privilege_level():
+	os_type = get_os_type()
+	if (os_type == OS_LINUX) or (os_type == OS_MACOSX):
+		if os.getuid() == 0:
+			return True
+		else:
+			return False
+
+	if os_type == OS_WINDOWS:
+		import ctypes
+		if ctypes.windll.shell32.IsUserAnAdmin():
+			return True
+		else:
+			return False
+
+	return False
+
+
+# check if the forwarding was set properly.
+def check_router_settings(config):
+	os_type = get_os_type()
+	if os_type == OS_LINUX:
+		if open('/proc/sys/net/ipv4/ip_forward','r').read()[0:1] == "0":
+			internal_print("The IP forwarding is not set.", -1)
+			internal_print("Please use the following two commands to set it properly (root needed):\n#\tsysctl -w net.ipv4.ip_forward=1\n#\tiptables -t nat -A POSTROUTING -s {0}/{1} -o [YOUR_INTERFACE/e.g./eth0] -j MASQUERADE\n".format(config.get("Global", "serverip"), config.get("Global", "servernetmask")))
+
+			return False
+
+	if os_type == OS_MACOSX:
+		import ctypes
+		import ctypes.util
+
+		# load libc
+		libc_name = ctypes.util.find_library('c')
+		libc = ctypes.CDLL(libc_name, use_errno=True)
+
+		# get value of forwarding with sysctl
+		fw_value = ctypes.c_int(-1)
+
+		err = libc.sysctlbyname("net.inet.ip.forwarding", ctypes.byref(fw_value), ctypes.byref(ctypes.c_uint(4)), None, 0)
+		if err < 0:
+			err = ctypes.get_errno()
+			internal_print("sysctl failed: {0} : {1}".format(err, os.strerror(err)), -1)
+			return False
+
+		if fw_value.value != 1:
+			internal_print("The IP forwarding is not set.", -1)
+			internal_print("Please use the following commands to set it properly (root needed):\n#\tsysctl -w net.inet.ip.forwarding=1\nPut the following line into the /etc/pf.conf after the \'nat-anchor \"com.apple/*\"' line:\n#\tnat on en0 from {0}/{1} to any -> (en0)\nThen load the config file with pfctl:\n#\tpfctl -f /etc/pf.conf -e -v".format(config.get("Global", "serverip"), config.get("Global", "servernetmask")))
+
+			return False
+
+	if os_type == OS_WINDOWS:
+		import _winreg as registry
+		#HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\IPEnableRouter - DWORD 1 - enable
+		#"Routing and Remote Access" service - Enable, start
+		PATH = "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\"
+
+		try:
+			regkey = registry.OpenKey(registry.HKEY_LOCAL_MACHINE, PATH)
+			router_value = registry.QueryValueEx(regkey, "IPEnableRouter")[0]
+		except WindowsError as e:
+			internal_print("Cannot get IPEnableRouter value. Registry key cannot be found: {0}".format(e), -1)
+			return False
+
+		if router_value != 1:
+			internal_print("The IP forwarding is not set.", -1)
+			internal_print("Please set the IPEnableRouter value to 1 with the following command:\n\treg add HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters /t REG_DWORD /v IPEnableRouter /d 1 /f\n\tMoreover you need to enable and start the \"Routing and Remote Access\" service.\n")
+
+			return False
+
+
+	return True
+
+
+# main config sanity check. If something missing from the Global section, then
+# shouts.
 def config_sanity_check(config, serverorclient):
 	if not config.has_section("Global"):
 		internal_print("config file missing 'Global' section", -1)
@@ -103,58 +285,95 @@ def config_sanity_check(config, serverorclient):
 
 			return False
 
+	if config.has_option("Global", "scope"):
+		scopefile = config.get("Global", "scope")
+		if not os.path.isfile(scopefile) and scopefile:
+			internal_print("File '{0}' does not exists. Delete 'scope' option from config or create scope file.".format(scopefile), -1)
+
+			return False
+
 	return True
 
-def check_gen():
-	number1 = random.randint(0, 4294967295)
-	number2 = random.randint(0, 4294967295)
-	number3 = number1 ^ number2
+# dummy function to check whether it is control channel or not.
+def is_control_channel(control_character):
+	if control_character == None:
+		return False
+	if (ord(control_character) & 0x80) == ord(CONTROL_CHANNEL_BYTE):
+		return True
+	else:
+		return False
 
-	return (struct.pack(">II", number1, number2), struct.pack(">I", number3))
-
-def check_calc(leftover):
-	numbers = struct.unpack(">II", leftover)
-	return struct.pack(">I", numbers[0] ^ numbers[1])
-
-def auth_first_step(clientip, sd):
-	client_public_source_ip = sd.getsockname()[0]
-	client_public_source_port = sd.getsockname()[1]
-	client_private_ip = clientip
-
-	return socket.inet_aton(client_private_ip)+socket.inet_aton(client_public_source_ip)+struct.pack(">H", client_public_source_port)
-
-def authenticate(msg):
-	#do real auth
-	#private IP come from the client, is this secure?
-	return True
-
-def init_client_stateful(msg, addr, client, packetselector):
+# initialization of the stateful client object
+# TODO: shouldn't it to be in the Stateful module?
+def init_client_stateful(msg, addr, client, packetselector, stopfp):
 	## TODO error handling
 	client_private_ip = msg[0:4]
 	client_public_source_ip = socket.inet_aton(addr[0])
 	client_public_source_port = addr[1]
 
+	# If this private IP is already used, the server removes that client.
+	# For example: client reconnect on connection reset, duplicated configs
+	# and yes, this can be used to kick somebody off the tunnel
 	for c in packetselector.get_clients():
 		if c.get_private_ip_addr() == client_private_ip:
 			packetselector.delete_client(c)
 
-	pipe_r, pipe_w = os.pipe()
-	client.set_pipes_fdnum(pipe_r, pipe_w)
-	client.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
+	# creating new pipes for the client
+	if get_os_type() == OS_WINDOWS:
+		import win32pipe
+		import win32file
+		import pywintypes
+		import win32event
 
+		import win32api
+		import winerror
+
+		overlapped = pywintypes.OVERLAPPED()
+		# setting up writable named pipe
+		mailslotname = "\\\\.\\mailslot\\XFLTReaT_{0}".format(socket.inet_ntoa(client_private_ip))
+
+		mailslot_r = win32file.CreateMailslot(mailslotname, 0, -1, None)
+		if (mailslot_r == None) or (mailslot_r == win32file.INVALID_HANDLE_VALUE):
+			internal_print("Invalid handle - mailslot", -1)
+			sys.exit(-1)
+
+		mailslot_w = win32file.CreateFile(mailslotname, win32file.GENERIC_WRITE,
+			win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE, None, win32file.OPEN_EXISTING,
+			win32file.FILE_ATTRIBUTE_NORMAL | win32file.FILE_FLAG_OVERLAPPED, None)
+		if (mailslot_w == None) or (mailslot_w == win32file.INVALID_HANDLE_VALUE):
+			internal_print("Invalid handle - readable pipe", -1)
+			sys.exit(-1)
+
+		client.set_pipes_fdnum(mailslot_r, mailslot_w)
+
+	else:
+		pipe_r, pipe_w = os.pipe()
+		client.set_pipes_fdnum(pipe_r, pipe_w)
+		client.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
+
+	# set connection related things and authenticated to True
 	client.set_public_ip_addr(client_public_source_ip)
 	client.set_public_src_port(client_public_source_port)
 	client.set_private_ip_addr(client_private_ip)
+	client.set_stopfp(stopfp)
 	client.set_authenticated(True)
 
 	return
 
+# initialization of the stateless client object
+# TODO: shouldn't it to be in the Stateful module?
 def init_client_stateless(msg, addr, client, packetselector, clients):
 	## TODO error handling
 	client_private_ip = msg[0:4]
 	client_public_source_ip = socket.inet_aton(addr[0])
 	client_public_source_port = addr[1]
 
+	# If this private IP is already used, the server removes that client.
+	# For example: client reconnect on connection reset, duplicated configs
+	# and yes, this can be used to kick somebody off the tunnel
+
+	# close client related pipes
+	# TODO it should go after the ps remove below.
 	for c in clients:
 		if c.get_private_ip_addr() == client_private_ip:
 			delete_client_stateless(clients, c)
@@ -163,10 +382,12 @@ def init_client_stateless(msg, addr, client, packetselector, clients):
 		if c.get_private_ip_addr() == client_private_ip:
 			packetselector.delete_client(c)
 
+	# creating new pipes for the client
 	pipe_r, pipe_w = os.pipe()
 	client.set_pipes_fdnum(pipe_r, pipe_w)
 	client.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
 
+	# set connection related things and authenticated to True
 	client.set_public_ip_addr(client_public_source_ip)
 	client.set_public_src_port(client_public_source_port)
 	client.set_private_ip_addr(client_private_ip)
@@ -174,12 +395,12 @@ def init_client_stateless(msg, addr, client, packetselector, clients):
 
 	return
 
+# remove client from client list and close down the pipes
 def delete_client_stateless(clients, client):
 	clients.remove(client)
-	client.get_pipe_r_fd().close()
-	client.get_pipe_w_fd().close()
 
-def lookup_client_priv(msg, clients):
+# looking for client, based on the private IP
+def lookup_client_priv(clients, msg):
 	client_private_ip = msg[16:20]
 
 	for c in clients:
@@ -188,11 +409,21 @@ def lookup_client_priv(msg, clients):
 
 	return None
 
+# looking for client, based on the public IP
 def lookup_client_pub(clients, addr):
 	client_public_ip = socket.inet_aton(addr[0])
 
 	for c in clients:
 		if (c.get_public_ip_addr() == client_public_ip) and (c.get_public_src_port() == addr[1]):
+			return c
+
+	return None
+
+# looking for client, based on the userid
+def lookup_client_userid(clients, userid):
+
+	for c in clients:
+		if c.get_userid() == userid:
 			return c
 
 	return None
@@ -205,4 +436,76 @@ def is_ipv4(s):
 	return bool(re.match("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$", s))
 
 def is_ipv6(s):
-	return bool(re.match("^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$", s))
+	too_long = "^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$"
+	return bool(re.match(too_long, s))
+
+
+def check_line_type(line):
+	# check if it looks valid
+	if not bool(re.match("^([0-9\.\-/]*)$", line)):
+		return 0
+
+	# ip/mask format
+	if bool(re.match("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(/[0-9]{1,2})$", line)):
+		return 1
+
+	# x.y.z.w-v format
+	if bool(re.match("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\-[0-9]{1,3})$", line)):
+		return 2
+
+	# ip format
+	if bool(re.match("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$", line)):
+		return 3
+
+
+
+	return -1
+
+def parse_scope_file(filename):
+	if not filename:
+		return []
+
+	f = open(filename, "r")
+	content = f.read()
+	f.close()
+
+	lines = content.split("\n")
+	scope = []
+
+	for line in lines:
+		if line:
+			if line[0:1] == "#":
+				# skip comments
+				continue
+
+			# get type of addressing, parse it accordingly
+			type_ = check_line_type(line)
+			if (type_ == 0) or (type_ == -1):
+				internal_print("Erroneous line in scope definition: {0}".format(line), -1)
+
+			if type_ == 1:
+				regexp = re.match("^([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})/([0-9]{1,3})$", line)
+				range_ip = struct.unpack(">I", socket.inet_aton(regexp.group(1)))[0]
+				network = socket.inet_ntoa(struct.pack(">I", range_ip & ((2**int(regexp.group(2)))-1)<<32-int(regexp.group(2))))
+				add = (network, socket.inet_ntoa(struct.pack(">I", ((2**int(regexp.group(2)))-1)<<32-int(regexp.group(2)))), regexp.group(2))
+				if add not in scope:
+					scope.append(add)
+
+			if type_ == 2:
+				regexp = re.match("^([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\.([0-9]{1,3})\-([0-9]{1,3})$", line)
+				for i in xrange(int(regexp.group(2)), int(regexp.group(3))+1):
+					add = ("{0}.{1}".format(regexp.group(1), i), "255.255.255.255", "32")
+					if add not in scope:
+						scope.append(add)
+
+			if type_ == 3:
+				add = (line, "255.255.255.255", "32")
+				if add not in scope:
+					scope.append(add)
+
+	return scope
+
+# ANSI escape codes are only supported from version 10
+if get_os_type() == OS_WINDOWS:
+	if int(get_os_version()[0:get_os_version().find(".")]) < 10:
+		colour = False

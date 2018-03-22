@@ -1,3 +1,25 @@
+# MIT License
+
+# Copyright (c) 2017 Balazs Bucsay
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import sys
 
 if "ICMP.py" in sys.argv[0]:
@@ -11,6 +33,7 @@ import os
 import struct
 import threading
 import random
+import subprocess
 
 #local files
 import Stateless_module
@@ -31,15 +54,23 @@ class ICMP(Stateless_module.Stateless_module):
 	ICMP
 	...
 	"""
+	module_os_support = common.OS_LINUX | common.OS_MACOSX
 
 	def __init__(self):
 		super(ICMP, self).__init__()
 		self.icmp = ICMP_Proto()
 		self.ICMP_sequence = 0
+		# identifier lottery
 		self.ICMP_identifier = int(random.random() * 65535)
+		# serverport lottery, not like it matters
 		self.ICMP_fake_serverport = int(random.random() * 65535)
+		# prefix to make it easier to detect xfl packets
 		self.ICMP_prefix = "XFL"
 		self.timeout = 2.0
+		# if the recv-sent>threshold:
+		self.TRACKING_THRESHOLD = 50
+		# then we cut back the difference with adjust:
+		self.TRACKING_ADJUST = 20
 
 		return
 
@@ -76,7 +107,15 @@ class ICMP(Stateless_module.Stateless_module):
 
 	def communication_initialization(self):
 		self.clients = []
-		os.system("echo 1 > /proc/sys/net/ipv4/icmp_echo_ignore_all") #???
+		if self.serverorclient:
+			if self.os_type == common.OS_LINUX:
+				ps = subprocess.Popen(["cat", "/proc/sys/net/ipv4/icmp_echo_ignore_all"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+				(stdout, stderr) = ps.communicate()
+				if stderr:
+					common.internal_print("Error: deleting default route: {0}".format(stderr), -1)
+					sys.exit(-1)
+				self.orig_ieia_value = stdout[0:1]
+				os.system("echo 1 > /proc/sys/net/ipv4/icmp_echo_ignore_all")
 
 		if self.serverorclient:
 			self.ICMP_send = self.icmp.ICMP_ECHO_RESPONSE
@@ -85,13 +124,13 @@ class ICMP(Stateless_module.Stateless_module):
 		return
 
 	def do_check(self):
-		message, self.check_result = common.check_gen()
+		message, self.check_result = self.checks.check_default_generate_challenge()
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, (self.server_tuple, self.ICMP_identifier, 0, 0)) #??
 
 		return
 
 	def do_auth(self):
-		message = common.auth_first_step(self.config.get("Global", "clientip"), self.comms_socket)
+		message = self.auth_module.send_details(self.config.get("Global", "clientip"))
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH+message, (self.server_tuple, self.ICMP_identifier, 0, 0)) #??
 
 		return
@@ -103,11 +142,11 @@ class ICMP(Stateless_module.Stateless_module):
 
 	def do_dummy_packet(self, identifier, sequence):
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_DUMMY_PACKET, 
-			(self.server_tuple, identifier, sequence, 0)) #??
+			(self.server_tuple, identifier, sequence, 0))
 
 		return
 
-	def send(self, type, message, additional_data):
+	def send(self, channel_type, message, additional_data):
 		addr = additional_data[0]
 		identifier = additional_data[1]
 		sequence = additional_data[2]
@@ -118,7 +157,7 @@ class ICMP(Stateless_module.Stateless_module):
 		else:
 			ql = chr(255)
 
-		if type == common.CONTROL_CHANNEL_BYTE:
+		if channel_type == common.CONTROL_CHANNEL_BYTE:
 			transformed_message = self.transform(ql+common.CONTROL_CHANNEL_BYTE+message, 1)
 		else:
 			transformed_message = self.transform(ql+common.DATA_CHANNEL_BYTE+message, 1)
@@ -127,10 +166,10 @@ class ICMP(Stateless_module.Stateless_module):
 
 		return self.comms_socket.sendto(
 			self.icmp.create_packet(self.ICMP_send, identifier, sequence, 
-			self.ICMP_prefix+struct.pack(">H", len(transformed_message))+transformed_message), 
-			addr)
+			self.ICMP_prefix+struct.pack(">H", len(transformed_message))+transformed_message), addr)
 
 	def recv(self):
+		# self.transform is missing, TODO
 		message, addr = self.comms_socket.recvfrom(1508)
 
 		identifier = struct.unpack("<H", message[24:26])[0]
@@ -152,7 +191,7 @@ class ICMP(Stateless_module.Stateless_module):
 
 		return message[3:], addr, identifier, sequence, queue_length
 
-	def communication(self, is_check):
+	def communication_unix(self, is_check):
 		sequence = 0
 		identifier = 0
 		self.rlist = [self.comms_socket]
@@ -175,66 +214,78 @@ class ICMP(Stateless_module.Stateless_module):
 						if self.authenticated:
 							self.ICMP_sequence = (self.ICMP_sequence + 1) % 65536
 							self.do_dummy_packet(self.ICMP_identifier, self.ICMP_sequence)
-							common.internal_print("DEBUG: Keep alive sent", 0, self.verbosity, common.DEBUG)
+							common.internal_print("Keep alive sent", 0, self.verbosity, common.DEBUG)
 					continue
 
 				for s in readable:
 					if (s in self.rlist) and not (s is self.comms_socket):
-						message = os.read(s, 4096)
+						message = self.packet_reader(s, True, self.serverorclient)
 						while True:
 							if (len(message) < 4) or (message[0:1] != "\x45"): #Only care about IPv4
 								break
 							packetlen = struct.unpack(">H", message[2:4])[0] # IP Total length
 							if packetlen > len(message):
-								message += os.read(s, 4096)
+								message += self.packet_reader(s, False, self.serverorclient)
 
 							readytogo = message[0:packetlen]
 							message = message[packetlen:]
 							if self.serverorclient:
-								c = common.lookup_client_priv(readytogo, self.clients)
+								c = common.lookup_client_priv(self.clients, readytogo)
 
 								if c:
+									# if the differece between the received and set sequences too big
+									# some routers/firewalls just drop older sequences. If it gets 
+									# too big, we just drop the older ones and use the latest X packet
+									# this helps on stabality.
+									if (c.get_ICMP_received_sequence()-c.get_ICMP_sent_sequence()) >= self.TRACKING_THRESHOLD:
+										c.set_ICMP_sent_sequence(c.get_ICMP_received_sequence()-self.TRACKING_ADJUST)
+
+									# get client related values: identifier and sequence number
 									identifier = c.get_ICMP_sent_identifier()
 									sequence = c.get_ICMP_sent_sequence()
 
+									# queueing every packet first
+									c.queue_put(readytogo)
+									# are there any packets to answer?
 									if (c.get_ICMP_received_sequence() - sequence) == 0:
-										c.queue_put(readytogo)
 										continue
 									else:
-										if c.queue_length():
-											c.queue_put(readytogo)
-											i = 0
-											if (c.get_ICMP_received_sequence() - sequence) < (c.queue_length()):
-												number_to_get = (c.get_ICMP_received_sequence() - sequence)
-											else:
-												number_to_get = c.queue_length()
-											for i in range(number_to_get - 1):
-												readytogo = c.queue_get()
-												self.send(common.DATA_CHANNEL_BYTE, readytogo,
-													((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port()), 
-													identifier, (sequence + i + 1), 0)) #??
+										# if there is less packet than that we have in the queue
+										# then we cap the outgoing packet number
+										if (c.get_ICMP_received_sequence() - sequence) < (c.queue_length()):
+											number_to_get = (c.get_ICMP_received_sequence() - sequence)
+										else:
+											# send all packets from the queue
+											number_to_get = c.queue_length()
+
+										request_num = 0
+										for i in range(0, number_to_get):
+											# get first packet
 											readytogo = c.queue_get()
-											sequence += i
-										
+											# is it he last one we are sending now?
+											if i == (number_to_get - 1):
+												# if the last one and there is more in the queue
+												# then we ask for dummy packets
+												request_num = c.queue_length()
+											# go packets go!
+											self.send(common.DATA_CHANNEL_BYTE, readytogo,
+												((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port()), 
+												identifier, sequence + i + 1, request_num))
 
-										sequence = (sequence + 1) % 65536
+										sequence = (sequence + i + 1) % 65536
 										c.set_ICMP_sent_sequence(sequence)
-										self.send(common.DATA_CHANNEL_BYTE, readytogo,
-											((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port()), 
-											identifier, sequence, c.queue_length())) #??
-
-
 								else:
+									# there is no client with that IP
 									common.internal_print("Client not found, strange?!", 0, self.verbosity, common.DEBUG)
 									continue
 
 							else:
 								if self.authenticated:
+									# whatever we have from the tunnel, just encapsulate it
+									# and send it out
 									self.ICMP_sequence = (self.ICMP_sequence + 1) % 65536
 									self.send(common.DATA_CHANNEL_BYTE, readytogo, 
 										(self.server_tuple, self.ICMP_identifier, self.ICMP_sequence, 0)) #??
-									sequence = self.ICMP_sequence # del this line
-									identifier = self.ICMP_identifier # del this line
 								else:
 									common.internal_print("Spoofed packets, strange?!", 0, self.verbosity, common.DEBUG)
 									continue
@@ -269,7 +320,7 @@ class ICMP(Stateless_module.Stateless_module):
 									self.do_dummy_packet(self.ICMP_identifier,
 										self.ICMP_sequence)
 
-						if message[0:len(common.CONTROL_CHANNEL_BYTE)] == common.CONTROL_CHANNEL_BYTE:
+						if common.is_control_channel(message[0:1]):
 							if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], (addr, identifier, sequence, 0)):
 								continue
 							else:
@@ -281,7 +332,7 @@ class ICMP(Stateless_module.Stateless_module):
 							
 						if self.authenticated:
 							try:
-								os.write(self.tunnel, message[len(common.CONTROL_CHANNEL_BYTE):])
+								self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
 							except OSError as e:
 								print e
 
@@ -299,7 +350,7 @@ class ICMP(Stateless_module.Stateless_module):
 	def serve(self):
 		server_socket = None
 		try:
-			common.internal_print("Starting server: {0} on {1}".format(self.get_module_name(), self.config.get("Global", "serverbind")))
+			common.internal_print("Starting module: {0} on {1}".format(self.get_module_name(), self.config.get("Global", "serverbind")))
 		
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
 			whereto = (self.config.get("Global", "serverbind"), self.ICMP_fake_serverport)
@@ -320,7 +371,7 @@ class ICMP(Stateless_module.Stateless_module):
 
 		return
 
-	def client(self):
+	def connect(self):
 		try:
 			common.internal_print("Starting client: {0}".format(self.get_module_name()))
 
@@ -351,7 +402,7 @@ class ICMP(Stateless_module.Stateless_module):
 			self.server_tuple = (self.config.get("Global", "remoteserverip"), self.ICMP_fake_serverport)
 			self.comms_socket = server_socket
 			self.serverorclient = 0
-			self.authenticated = True
+			self.authenticated = False
 			self.communication_initialization()
 			self.do_check()
 			self.communication(True)
@@ -368,7 +419,9 @@ class ICMP(Stateless_module.Stateless_module):
 
 	def cleanup(self):
 		common.internal_print("Shutting down module: {0}".format(self.get_module_name()))
-		os.system("echo 0 > /proc/sys/net/ipv4/icmp_echo_ignore_all") #???
+		if self.serverorclient:
+			if self.os_type == common.OS_LINUX:
+				os.system("echo {0} > /proc/sys/net/ipv4/icmp_echo_ignore_all".format(self.orig_ieia_value)) #???
 		try:
 			self.comms_socket.close()
 		except:

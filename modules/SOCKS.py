@@ -1,3 +1,25 @@
+# MIT License
+
+# Copyright (c) 2017 Balazs Bucsay
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import sys
 
 if "SOCKS.py" in sys.argv[0]:
@@ -19,8 +41,8 @@ import common
 import support.socks_proto as SOCKS_proto
 
 class SOCKS_thread(TCP_generic.TCP_generic_thread):
-	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, verbosity, config, module_name):
-		super(SOCKS_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, verbosity, config, module_name)
+	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name):
+		super(SOCKS_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name)
 
 class SOCKS(TCP_generic.TCP_generic):
 
@@ -29,6 +51,7 @@ class SOCKS(TCP_generic.TCP_generic):
 	module_description = """SOCKS Proxy support for version 4, 4a, 5. This 
 		module is based on the TCP_generic module.
 		"""
+	module_os_support = common.OS_LINUX | common.OS_MACOSX
 
 	def __init__(self):
 		super(SOCKS, self).__init__()
@@ -182,10 +205,8 @@ class SOCKS(TCP_generic.TCP_generic):
 
 		return True
 
-	def client(self):
+	def connect(self):
 		try:
-			if not self.sanity_check():
-				return
 			version = self.config.get(self.get_module_configname(), "version")
 			common.internal_print("Starting client: {0}, Version: {1} ({2}:{3})".format(self.get_module_name(), version, self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
@@ -196,7 +217,7 @@ class SOCKS(TCP_generic.TCP_generic):
 			server_socket.connect((self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
 			if self.socks_handshake(server_socket):
-				client_fake_thread = SOCKS_thread(0, 0, self.tunnel, None, server_socket, None, self.verbosity, self.config, self.get_module_name())
+				client_fake_thread = SOCKS_thread(0, 0, self.tunnel, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
 				client_fake_thread.do_auth()
 				client_fake_thread.communication(False)
 
@@ -227,7 +248,7 @@ class SOCKS(TCP_generic.TCP_generic):
 			server_socket.connect((self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
 			if self.socks_handshake(server_socket):
-				client_fake_thread = SOCKS_thread(0, 0, None, None, server_socket, None, self.verbosity, self.config, self.get_module_name())
+				client_fake_thread = SOCKS_thread(0, 0, None, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
 				client_fake_thread.do_check()
 				client_fake_thread.communication(True)
 
@@ -244,3 +265,11 @@ class SOCKS(TCP_generic.TCP_generic):
 			self.cleanup(server_socket)
 
 		return
+
+	def get_intermediate_hop(self, config):
+		if config.has_option(self.get_module_configname(), "proxyip"):
+			if common.is_ipv4(config.get(self.get_module_configname(), "proxyip")) or common.is_ipv6(config.get(self.get_module_configname(), "proxyip")):
+				remoteserverip = config.get(self.get_module_configname(), "proxyip")
+
+				return remoteserverip
+		return ""
