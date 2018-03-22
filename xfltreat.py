@@ -296,7 +296,7 @@ Balazs Bucsay [[@xoreipeip]]
 				except KeyboardInterrupt:
 					# CTRL+C was pushed
 					interface.close_tunnel(client_tunnel)
-					
+
 					if self.splitmode:
 						interface.del_split_route(self.scope, config.get("Global", "serverip"))
 					else:
@@ -344,7 +344,11 @@ Balazs Bucsay [[@xoreipeip]]
 
 		# give one sec to clean up for modules, otherwise some objects just
 		# disapper and cannot be closed properly like the tunnel interface
-		time.sleep(1.0)
+		try:
+			time.sleep(1.0)
+		except KeyboardInterrupt:
+			common.internal_print("Are you really this impatient????", -1)
+			pass
 
 # main function
 if __name__ == "__main__":
