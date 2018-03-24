@@ -227,6 +227,11 @@ class RDP_thread(TCP_generic.TCP_generic_thread):
 								if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], None):
 									continue
 								else:
+									# If the module is stopped right away, then
+									# the channel will be closing down as well.
+									# Because of the buffering the message will
+									# not be sent. That is why we need to sleep
+									time.sleep(0.5)
 									self.stop()
 									break
 
