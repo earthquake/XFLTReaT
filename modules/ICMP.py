@@ -105,6 +105,15 @@ class ICMP(Stateless_module.Stateless_module):
 
 		return
 
+	def lookup_client_pub(self, clients, addr, identifier):
+		client_public_ip = socket.inet_aton(addr[0])
+
+		for c in clients:
+			if (c.get_public_ip_addr() == client_public_ip) and (c.get_ICMP_received_identifier() == identifier):
+				return c
+
+		return None
+
 	def communication_initialization(self):
 		self.clients = []
 		if self.serverorclient:
@@ -300,7 +309,7 @@ class ICMP(Stateless_module.Stateless_module):
 						c = None
 						if self.serverorclient:
 							self.authenticated = False
-							c = common.lookup_client_pub(self.clients, addr)
+							c = self.lookup_client_pub(self.clients, addr, identifier)
 							if c:
 								c.set_ICMP_received_identifier(identifier)
 								# packets does not arrive in order sometime
