@@ -51,24 +51,29 @@ class WebSocket_thread(TCP_generic.TCP_generic_thread):
 
 	def communication_initialization(self):
 		self.client = client.Client()
-		self.client.set_socket(self.comms_socket)
+		try:
+			self.client.set_socket(self.comms_socket)
 		
-		common.internal_print("Waiting for upgrade request", 0, self.verbosity, common.DEBUG)
-		response = self.comms_socket.recv(4096)
+			common.internal_print("Waiting for upgrade request", 0, self.verbosity, common.DEBUG)
+			response = self.comms_socket.recv(4096)
 
-		if len(response) == 0:
-			common.internal_print("Connection was dropped", 0, self.verbosity, common.DEBUG)
+			if len(response) == 0:
+				common.internal_print("Connection was dropped", 0, self.verbosity, common.DEBUG)
+				self.cleanup()
+				sys.exit(-1)
+			handshake_key = self.WebSocket_proto.get_handshake_init(response)
+			if handshake_key == None:
+				common.internal_print("No WebSocket-Key in request", -1, self.verbosity, common.DEBUG)
+				self.cleanup()
+				sys.exit(-1)
+
+			handshake = self.WebSocket_proto.calculate_handshake(handshake_key)
+			response = self.WebSocket_proto.switching_protocol(handshake)
+			self.comms_socket.send(response)
+		except:
+			common.internal_print("Socket error", -1, self.verbosity, common.DEBUG)
 			self.cleanup()
 			sys.exit(-1)
-		handshake_key = self.WebSocket_proto.get_handshake_init(response)
-		if handshake_key == None:
-			common.internal_print("No WebSocket-Key in request", -1, self.verbosity, common.DEBUG)
-			self.cleanup()
-			sys.exit(-1)
-
-		handshake = self.WebSocket_proto.calculate_handshake(handshake_key)
-		response = self.WebSocket_proto.switching_protocol(handshake)
-		self.comms_socket.send(response)
 
 		return
 
