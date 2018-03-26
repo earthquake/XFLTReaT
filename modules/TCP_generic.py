@@ -23,7 +23,7 @@
 import sys
 
 if "TCP_generic.py" in sys.argv[0]:
-	print "[-] Instead of poking around just try: python xfltreat.py --help"
+	print("[-] Instead of poking around just try: python xfltreat.py --help")
 	sys.exit(-1)
 
 import socket
@@ -225,7 +225,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 									# write packet to the tunnel
 									self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
 								except OSError as e:
-									print e # wut?
+									print(e) # wut?
 								except Exception as e:
 									if e.args[0] == 995:
 										common.internal_print("Interface disappered, exiting thread: {0}".format(e), -1)
@@ -298,9 +298,9 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 								try:
 									self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
 								except OSError as e:
-									print e # wut?
+									print(e) # wut?
 								except Exception as e:
-									print e
+									print(e)
 
 			except (socket.error, OSError, IOError):
 				if self.serverorclient:
@@ -313,7 +313,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 					self.comms_socket.close()
 				break
 			except:
-				print "another error"
+				print("another error")
 				raise
 
 		self.cleanup()

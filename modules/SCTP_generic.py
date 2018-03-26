@@ -24,7 +24,7 @@
 import sys
 
 if "SCTP_generic.py" in sys.argv[0]:
-	print "[-] Instead of poking around just try: python xfltreat.py --help"
+	print("[-] Instead of poking around just try: python xfltreat.py --help")
 	sys.exit(-1)
 
 import socket
@@ -190,7 +190,7 @@ class SCTP_generic_thread(Stateful_module.Stateful_thread):
 							try:
 								self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
 							except OSError as e:
-								print e # wut?
+								print(e) # wut?
 
 			except (socket.error, OSError, IOError):
 				if self.serverorclient:
@@ -203,7 +203,7 @@ class SCTP_generic_thread(Stateful_module.Stateful_thread):
 					self.comms_socket.close()
 				break
 			except:
-				print "another error"
+				print("another error")
 				raise
 
 		self.cleanup()

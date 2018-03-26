@@ -23,7 +23,7 @@
 import sys
 
 if "HTTP_CONNECT.py" in sys.argv[0]:
-	print "[-] Instead of poking around just try: python xfltreat.py --help"
+	print("[-] Instead of poking around just try: python xfltreat.py --help")
 	sys.exit(-1)
 
 
@@ -73,7 +73,7 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 
 
 		serverport = int(self.config.get(self.get_module_configname(), "serverport"))
-		request = "CONNECT %s:%d HTTP/1.1\r\nHost: %s\r\n\r\n" % (remoteserver, serverport, remoteserver)
+		request = "CONNECT {0}:{1} HTTP/1.1\r\nHost: {2}\r\n\r\n".format(remoteserver, serverport, remoteserver)
 
 		server_socket.send(request)
 		

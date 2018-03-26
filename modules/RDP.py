@@ -23,7 +23,7 @@
 import sys
 
 if "RDP.py" in sys.argv[0]:
-	print "[-] Instead of poking around just try: python xfltreat.py --help"
+	print("[-] Instead of poking around just try: python xfltreat.py --help")
 	sys.exit(-1)
 
 import socket
@@ -240,13 +240,13 @@ class RDP_thread(TCP_generic.TCP_generic_thread):
 									# write packet to the tunnel
 									self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
 								except OSError as e:
-									print e # wut?
+									print(e) # wut?
 								except Exception as e:
 									if e.args[0] == 995:
 										common.internal_print("Interface disappered, exiting thread: {0}".format(e), -1)
 										self.stop()
 										continue
-									print e
+									print(e)
 					if rc == 1:
 						read_rdp = False
 						read_pipe = True

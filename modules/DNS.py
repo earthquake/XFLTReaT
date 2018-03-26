@@ -23,7 +23,7 @@
 import sys
 
 if "DNS.py" in sys.argv[0]:
-	print "[-] Instead of poking around just try: python xfltreat.py --help"
+	print("[-] Instead of poking around just try: python xfltreat.py --help")
 	sys.exit(-1)
 
 import socket
@@ -868,7 +868,7 @@ class DNS(UDP_generic.UDP_generic):
 			try:
 				readable, writable, exceptional = select.select(self.rlist, wlist, xlist, self.select_timeout)
 			except select.error, e:
-				print e
+				print(e)
 				break
 
 			try:
@@ -945,8 +945,8 @@ class DNS(UDP_generic.UDP_generic):
 							try:
 								os.write(self.tunnel, message[len(common.CONTROL_CHANNEL_BYTE):])
 							except OSError as e:
-								print "os.write: %r" % message[len(common.CONTROL_CHANNEL_BYTE):] 
-								print e
+								print("os.write: {0}".format(message[len(common.CONTROL_CHANNEL_BYTE):]))
+								print(e)
 
 			except (socket.error, OSError):
 				raise
@@ -954,7 +954,7 @@ class DNS(UDP_generic.UDP_generic):
 					self.comms_socket.close()
 				break
 			except:
-				print "another error"
+				print("another error")
 				raise
 
 		return

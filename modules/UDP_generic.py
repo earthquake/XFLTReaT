@@ -23,7 +23,7 @@
 import sys
 
 if "UDP_generic.py" in sys.argv[0]:
-	print "[-] Instead of poking around just try: python xfltreat.py --help"
+	print("[-] Instead of poking around just try: python xfltreat.py --help")
 	sys.exit(-1)
 
 import socket
@@ -122,7 +122,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 			try:
 				readable, writable, exceptional = select.select(self.rlist, wlist, xlist, self.timeout)
 			except select.error, e:
-				print e
+				print(e)
 				break
 
 			if (not readable) and is_check:
@@ -177,7 +177,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 							try:
 								self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
 							except OSError as e:
-								print e
+								print(e)
 
 			except (socket.error, OSError):
 				raise
@@ -185,7 +185,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 					self.comms_socket.close()
 				break
 			except:
-				print "another error"
+				print("another error")
 				raise
 
 		return
