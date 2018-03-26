@@ -708,7 +708,6 @@ class Interface():
 
 	def win_set_intermediate_route(self, serverip, proxyip):
 		common.internal_print("Changing route table for intermediate hop")
-		print("IS THIS WORKING PROPERLY?")
 		# delete original default route
 		ps = subprocess.Popen(["route", "DELETE", serverip, self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
