@@ -63,11 +63,11 @@ class XFLTReaT:
 			"  \t--verbose\t\t1 = verbose mode\n"\
 			"  \t\t\t\t2 = debug mode")
 
-  		return
+		return
 
-  	# nicest banner ever.
-  	def banner(self):
-  		print(""\
+	# nicest banner ever.
+	def banner(self):
+		print(""\
 			",--.   ,--.,------.,--.,--------.,------.                ,--------. \n"\
 			" \  `.'  / |  .---'|  |'--.  .--'|  .--. ' ,---.  ,--,--.'--.  .--' \n"\
 			"  .'    \  |  `--, |  |   |  |   |  '--'.'| .-. :' ,-.  |   |  |    \n"\
