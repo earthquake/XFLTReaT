@@ -23,7 +23,7 @@
 import sys
 
 if "packetselector.py" in sys.argv[0]:
-	print "[-] Instead of poking around just try: python xfltreat.py --help"
+	print("[-] Instead of poking around just try: python xfltreat.py --help")
 	sys.exit(-1)
 
 # This is the engine of the whole communication. Every packet that arrives to 
@@ -98,13 +98,13 @@ class PacketSelector(threading.Thread):
 					win32file.CloseHandle(client.get_pipe_r())
 					win32file.CloseHandle(client.get_pipe_w())
 				except Exception as e:
-					print "Remove authenticated client: CloseHandle exception: %r" % e
+					common.internal_print("Remove authenticated client: CloseHandle exception: {0}".format(e), -1)
 			else:
 				try:
 					client.get_pipe_r_fd().close()
 					client.get_pipe_w_fd().close()
 				except Exception as e:
-					print "Remove authenticated client: os.close exception: %r" % e
+					common.internal_print("Remove authenticated client: os.close exception: {0}".format(e), -1)
 
 			client.call_stopfp()
 			self.clients.remove(client)
@@ -129,7 +129,7 @@ class PacketSelector(threading.Thread):
 			try:
 				readable, writable, exceptional = select.select(rlist, wlist, xlist, self.timeout)
 			except select.error as e:
-				print e
+				print(e)
 				break
 
 			for s in readable:

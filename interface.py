@@ -25,7 +25,7 @@
 import sys
 
 if "interface.py" in sys.argv[0]:
-	print "[-] Instead of poking around just try: python xfltreat.py --help"
+	print("[-] Instead of poking around just try: python xfltreat.py --help")
 	sys.exit(-1)
 
 
@@ -323,7 +323,7 @@ class Interface():
 			fcntl.ioctl(sock, self.IOCTL_MACOSX_SIOCAIFADDR, ifr)
 		except Exception as e:
 			common.internal_print("Something went wrong with setting up the interface.", -1)
-			print e
+			print(e)
 			sys.exit(-1)
 
 		# adding new route for forwarding packets properly.
@@ -708,7 +708,7 @@ class Interface():
 
 	def win_set_intermediate_route(self, serverip, proxyip):
 		common.internal_print("Changing route table for intermediate hop")
-		print "IS THIS WORKING PROPERLY?"
+		print("IS THIS WORKING PROPERLY?")
 		# delete original default route
 		ps = subprocess.Popen(["route", "DELETE", serverip, self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()

@@ -23,7 +23,7 @@
 import sys
 
 if "auth_noauth.py" in sys.argv[0]:
-	print "[-] Instead of poking around just try: python xfltreat.py --help"
+	print("[-] Instead of poking around just try: python xfltreat.py --help")
 	sys.exit(-1)
 
 import socket

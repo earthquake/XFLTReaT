@@ -52,29 +52,28 @@ class XFLTReaT:
 
 	# print usage when needed
 	def usage(self):
-		print """[*] Usage: python xfltreat [options]:
-Options:
-  -h\t--help\t\t\tusage of the tool (this help)
-  -s\t--server\t\tturn on server mode (default)
-  -c\t--client\t\tturn on client mode
-  \t--check\t\t\tcheck modules on server side
-  \t--config\t\tspecify config file (default: xfltreat.conf)
-  \t--split\t\t\tsplit tunnel mode (specify scope in config)
-  \t--verbose\t\t1 = verbose mode
-  \t\t\t\t2 = debug mode"""
+		print("[*] Usage: python xfltreat [options]:\n"\
+			"Options:\n"\
+			"  -h\t--help\t\t\tusage of the tool (this help)\n"\
+			"  -s\t--server\t\tturn on server mode (default)\n"\
+			"  -c\t--client\t\tturn on client mode\n"\
+			"  \t--check\t\t\tcheck modules on server side\n"\
+			"  \t--config\t\tspecify config file (default: xfltreat.conf)\n"\
+			"  \t--split\t\t\tsplit tunnel mode (specify scope in config)\n"\
+			"  \t--verbose\t\t1 = verbose mode\n"\
+			"  \t\t\t\t2 = debug mode")
 
   		return
 
   	# nicest banner ever.
   	def banner(self):
-  		print """
-,--.   ,--.,------.,--.,--------.,------.                ,--------. 
- \  `.'  / |  .---'|  |'--.  .--'|  .--. ' ,---.  ,--,--.'--.  .--' 
-  .'    \  |  `--, |  |   |  |   |  '--'.'| .-. :' ,-.  |   |  |    
- /  .'.  \ |  |`   |  '--.|  |   |  |\  \ \   --.\ '-'  |   |  |    
-'--'   '--'`--'    `-----'`--'   `--' '--' `----' `--`--'   `--'    
-Balazs Bucsay [[@xoreipeip]]
-"""
+  		print(""\
+			",--.   ,--.,------.,--.,--------.,------.                ,--------. \n"\
+			" \  `.'  / |  .---'|  |'--.  .--'|  .--. ' ,---.  ,--,--.'--.  .--' \n"\
+			"  .'    \  |  `--, |  |   |  |   |  '--'.'| .-. :' ,-.  |   |  |    \n"\
+			" /  .'.  \ |  |`   |  '--.|  |   |  |\  \ \   --.\ '-'  |   |  |    \n"\
+			"'--'   '--'`--'    `-----'`--'   `--' '--' `----' `--`--'   `--'    \n"\
+			"Balazs Bucsay [[@xoreipeip]]\n")
 		return
 
 	def __init__(self):

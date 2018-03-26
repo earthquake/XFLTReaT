@@ -23,7 +23,7 @@
 import sys
 
 if "common.py" in sys.argv[0]:
-	print "[-] Instead of poking around just try: python xfltreat.py --help"
+	print("[-] Instead of poking around just try: python xfltreat.py --help")
 	sys.exit(-1)
 
 import struct
@@ -88,9 +88,9 @@ def internal_print(message, feedback = 0, verbosity = 0, severity = 0):
 			else:
 				prefix = "[+]"
 		if colour:
-			print "%s %s%s\033[39m" % (prefix, debug, message)
+			print("{0} {1}{2}\033[39m".format(prefix, debug, message))
 		else:
-			print "%s %s%s" % (prefix, debug, message)
+			print("{0} {1}{2}".format(prefix, debug, message))
 
 # check if the OS is supported
 def os_support():
