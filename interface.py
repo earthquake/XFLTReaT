@@ -565,6 +565,7 @@ class Interface():
 
 	def win_tun_alloc(self, dev, flags):
 		TAP_IOCTL_SET_MEDIA_STATUS 	= self.WIN_TAP_CONTROL_CODE(6, 0)
+		import pywintypes
 
 		guid = self.WIN_get_device_guid()
 		if not guid:
@@ -572,12 +573,18 @@ class Interface():
 			sys.exit(-1)
 
 		# create a win32file for manipulating the TUN/TAP interface
-		self.wintun = win32file.CreateFile("\\\\.\\Global\\{0}.tap".format(guid),
-			win32file.GENERIC_READ | win32file.GENERIC_WRITE,
-			win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
-			None, win32file.OPEN_EXISTING,
-			win32file.FILE_ATTRIBUTE_SYSTEM | win32file.FILE_FLAG_NO_BUFFERING | win32file.FILE_FLAG_OVERLAPPED,
-			None)
+		try:
+			self.wintun = win32file.CreateFile("\\\\.\\Global\\{0}.tap".format(guid),
+				win32file.GENERIC_READ | win32file.GENERIC_WRITE,
+				win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
+				None, win32file.OPEN_EXISTING,
+				win32file.FILE_ATTRIBUTE_SYSTEM | win32file.FILE_FLAG_NO_BUFFERING | win32file.FILE_FLAG_OVERLAPPED,
+				None)
+		except pywintypes.error as e:
+			if e.args[0] == 31: # A device attached to the system is not functioning.
+				common.internal_print("The TUN device is already in use. Maybe another XFLTReaT is running.", -1)
+				sys.exit(-1)	
+
 
 		# have Windows consider the interface now connected
 		win32file.DeviceIoControl(self.wintun, TAP_IOCTL_SET_MEDIA_STATUS, '\x01\x00\x00\x00', 1, None)
