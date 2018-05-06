@@ -59,59 +59,9 @@ class UDP_generic(Stateless_module.Stateless_module):
 
 		return
 
-	'''
-	def do_check(self):
-		message, self.check_result = self.checks.check_default_generate_challenge()
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, (self.server_tuple))
-
-		return
-
-	# start talking to the server
-	# do authentication or encryption first
-	def do_hello(self):
-		# TODO: maybe change this later to push some more info, not only the 
-		# private IP
-		message = socket.inet_aton(self.config.get("Global", "clientip"))
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT+message, None)
-
-	'''
-	'''
-	# start talking to the server
-	# do authentication or encryption first
-	def do_hello(self):
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT, None)
-
-	# start talking to the server
-	# do authentication or encryption first
-	def do_hello(self):
-		if not self.encryption.get_module().get_step_count():
-			# no encryption
-			self.post_encryption_client()
-		else:
-			# add encryption steps
-			self.merge_cmh(self.encryption.get_module().get_cmh_struct())
-			# get and send encryption initialization message
-			message = self.encryption.get_module().encryption_init_msg()
-			self.send(common.CONTROL_CHANNEL_BYTE, message, (self.server_tuple))
-
-		return
-
-	def do_auth(self):
-		message = self.authentication.send_details(self.config.get("Global", "clientip"))
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH+message, (self.server_tuple))
-
-		return
-	'''
-
-	'''
-	def do_logoff(self):
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, (self.server_tuple))
-
-		return
-	'''
-
 	def send(self, channel_type, message, additional_data):
-		addr = additional_data
+		addr = additional_data[0]
+
 		if channel_type == common.CONTROL_CHANNEL_BYTE:
 			transformed_message = self.transform(self.get_client_encryption(additional_data), common.CONTROL_CHANNEL_BYTE+message, 1)
 		else:
@@ -144,7 +94,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 
 		common.internal_print("UDP read: {0}".format(len(message)-2), 0, self.verbosity, common.DEBUG)
 
-		return self.transform(self.get_client_encryption(addr), message[2:], 0), addr
+		return self.transform(self.get_client_encryption((addr, None)), message[2:], 0), addr
 
 	def communication_unix(self, is_check):
 		self.rlist = [self.comms_socket]
@@ -179,13 +129,13 @@ class UDP_generic(Stateless_module.Stateless_module):
 								c = common.lookup_client_priv(self.clients, readytogo)
 								if c:
 									self.send(common.DATA_CHANNEL_BYTE,
-										readytogo, ((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port())))
+										readytogo, ((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port()), None))
 								else:
 									common.internal_print("Client not found, strange?!", 0, self.verbosity, common.DEBUG)
 									continue
 							else:
 								if self.authenticated:
-									self.send(common.DATA_CHANNEL_BYTE, readytogo, (self.server_tuple))
+									self.send(common.DATA_CHANNEL_BYTE, readytogo, (self.server_tuple, None))
 
 
 					if s is self.comms_socket:
@@ -199,7 +149,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 							c = common.lookup_client_pub(self.clients, addr)
 
 						if common.is_control_channel(message[0:1]):
-							if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], (addr)):
+							if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], (addr, None)):
 								continue
 							else:
 								self.stop()
