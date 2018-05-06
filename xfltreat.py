@@ -46,6 +46,7 @@ from modules.Stateful_module import Stateful_module
 from modules.Stateless_module import Stateless_module
 from interface import Interface
 from packetselector import PacketSelector
+import encryption
 import authentication
 
 class XFLTReaT:
@@ -92,6 +93,7 @@ class XFLTReaT:
 		self.forbidden_modules_instance = [Generic_module, Stateful_module, Stateless_module]
 
 		self.authentication = authentication.Authentication()
+		self.encryption = encryption.Encryption()
 
 	def run(self, argv):
 		self.banner()
@@ -151,8 +153,23 @@ class XFLTReaT:
 		# load authentication module
 		auth_module = self.authentication.load_auth_module(config)
 
-		#sanity check for the auth module
+		# sanity check for the auth module
 		if not auth_module.sanity_check(config):
+			sys.exit(-1)
+
+		# initialize authentication
+		if not auth_module.init(config, self.servermode):
+			sys.exit(-1)
+
+		# load encryption module
+		encryption_module = self.encryption.load_encryption_module(config)
+
+		# sanity check for the encryption module
+		if not encryption_module.sanity_check(config):
+			sys.exit(-1)
+
+		# initialize encryption
+		if not encryption_module.init(config, self.servermode):
 			sys.exit(-1)
 
 		if self.splitmode:
@@ -252,7 +269,7 @@ class XFLTReaT:
 			# Executing module in server mode
 			if self.servermode:
 				module_thread_num = module_thread_num + 1
-				if m.__init_thread__(module_thread_num, config, server_tunnel, ps, auth_module, self.verbosity):
+				if m.__init_thread__(module_thread_num, config, server_tunnel, ps, auth_module, encryption_module, self.verbosity):
 					m.start()
 					module_threads.append(m)
 
@@ -281,7 +298,7 @@ class XFLTReaT:
 						interface.set_intermediate_route(config.get("Global", "remoteserverip"), remoteserverip)
 
 					# init "thread" for client mode, this will not be run in a thread.
-					if m.__init_thread__(0, config, client_tunnel, None, auth_module, self.verbosity):
+					if m.__init_thread__(0, config, client_tunnel, None, auth_module, encryption_module, self.verbosity):
 						# run in client mode
 						m.connect()
 
