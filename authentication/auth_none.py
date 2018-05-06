@@ -22,14 +22,12 @@
 
 import sys
 
-if "auth_saltedsha512.py" in sys.argv[0]:
+if "auth_none.py" in sys.argv[0]:
 	print("[-] Instead of poking around just try: python xfltreat.py --help")
 	sys.exit(-1)
 
 import socket
 import struct
-import hashlib
-import random
 
 import common
 import Generic_authentication_module
@@ -37,76 +35,31 @@ import Generic_authentication_module
 class Authentication_module(Generic_authentication_module.Generic_authentication_module):
 	def __init__(self):
 		super(Authentication_module, self).__init__()
+
 		self.cmh_struct_authentication  = {
 			# num : [string to look for, function, server(1) or client(0), return on success, return on failure]
 			# return value meanings: True  - module continues
 			#						 False - module thread terminates
 			# in case of Stateless modules, the whole module terminates if the return value is False
-			0  : ["XFLT>AUTH!", 		self.authentication_step_1, 1, True, False, True],
-			1  : ["XFLT>AUTH_OK", 		self.authentication_step_2_ok, 0, True, False, False],
+			0  : ["XFLT>AUTH!", 		self.authentication_step_1, 1, True, False],
+			1  : ["XFLT>AUTH_OK", 		self.authentication_step_2_ok, 0, True, False],
 			2  : ["XFLT>AUTH_NOTOK", 	self.authentication_step_2_not_ok, 0, True, False, False]
 		}
-		self.step_counter = 3
+		self.step_counter = 2
 
-		self.key = None
 		return
 
-	def sanity_check(self, config):
-		if not config.has_option("Authentication", "key"):
-			common.internal_print("Please define a 'key' option in the Authentication section", -1)
-
-			return False
-
-		self.key = config.get("Authentication", "key")
-		if not len(self.key):
-			common.internal_print("The 'key' option's value in the Authentication section is missing", -1)
-
-			return False
-		if len(self.key) < 10:
-			common.internal_print("The 'key' option's value in the Authentication section is a bit short, it is recommended to make it longer", -1)
-
-		return True
-
-	def send_details(self):
-		rnd = struct.pack("<I", random.randint(0, 4294967295))
-		m = hashlib.sha512()
-		m.update(rnd)
-		m.update(self.key)
-		ciphertext = m.digest()
-
-		return rnd+ciphertext
-
-	def check_details(self, msg):
-		rnd = msg[0:4]
-		ciphertext = msg[4:68]
-		m = hashlib.sha512()
-		m.update(rnd)
-		m.update(self.key)
-		if ciphertext == m.digest():
-			return True
-
-		return False
-
 	def authentication_init_msg(self):
-		return self.cmh_struct_authentication[0][0]+self.send_details()
+		return self.cmh_struct_authentication[0][0]
 
 	# auth: authentication request received, authenticate client
 	def authentication_step_1(self, module, message, additional_data, cm):
-		if self.check_details(message[len(self.cmh_struct_authentication[0][0]):]):
-			if module.post_authentication_server(message[len(self.cmh_struct_authentication[0][0]):], additional_data):
-				module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_authentication[1][0], additional_data)
-			else:
-				module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_authentication[2][0], additional_data)
-				return module.cmh_struct[cm][4+module.is_caller_stateless()]
+		module.post_authentication_server(message[len(self.cmh_struct_authentication[0][0]):], additional_data)
+		common.internal_print("Client authenticated", 1)
 
-			common.internal_print("Client authenticated", 1)
+		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_authentication[1][0], additional_data)
 
-			return module.cmh_struct[cm][3]
-		else:
-			module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_authentication[2][0], additional_data)
-			common.internal_print("Client authentication failed", -1)
-
-		return module.cmh_struct[cm][4+module.is_caller_stateless()]
+		return module.cmh_struct[cm][3]
 
 	# auth_ok: auth succeded on server, client authenticated
 	def authentication_step_2_ok(self, module, message, additional_data, cm):
