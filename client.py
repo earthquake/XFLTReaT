@@ -28,12 +28,14 @@ if "client.py" in sys.argv[0]:
 
 
 import Queue
+import encryption
 
 # python 2.7 hack to have inheritance. Without the metaclass, the inhericance
 # fails
 __metaclass__ = type
 class Client():
 	def __init__(self):
+		self.initiated = False
 		self.public_ip_addr = None
 		self.public_src_port = None
 		self.private_ip_addr = None
@@ -43,9 +45,16 @@ class Client():
 		self.pipe_r_fd = None
 		self.pipe_w_fd = None
 		self.stopfp = None
-		#TODO
 		self.authenticated = False
-		self.encryption_key = None
+		self.encryption = encryption.Encryption_details()
+
+	def set_initiated(self, boolean):
+		self.initiated = boolean
+
+		return
+
+	def get_initiated(self):
+		return self.initiated
 
 	# setting the public IP address of the client
 	def set_public_ip_addr(self, public_ip_addr):
@@ -141,3 +150,6 @@ class Client():
 	def call_stopfp(self):
 		if self.stopfp:
 			self.stopfp()
+
+	def get_encryption(self):
+		return self.encryption

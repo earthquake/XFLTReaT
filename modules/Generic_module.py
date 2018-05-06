@@ -31,6 +31,7 @@ import threading
 
 #local files
 import common
+import encryption
 from packetselector import PacketSelector
 from client import Client
 
@@ -41,13 +42,18 @@ class Generic_module(threading.Thread):
 	This saves us some bytes and fulfills the joy of oop. Wut?
 	"""
 
-	def __init_thread__(self, threadID, config, tunnel, packetselector, auth_module, verbosity):
+	def __init_thread__(self, threadID, config, tunnel, packetselector, authentication, encryption_module, verbosity):
 		threading.Thread.__init__(self)
 		self.threadID = threadID
 		self.config = config
 		self.tunnel = tunnel
 		self.packetselector = packetselector
-		self.auth_module = auth_module
+		self.authentication = authentication
+
+		self.encryption_module = encryption_module
+		self.encryption = encryption.Encryption_details()
+		self.encryption.set_module(encryption_module)
+
 		self.verbosity = verbosity
 		self._stop = False
 

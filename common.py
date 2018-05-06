@@ -39,11 +39,15 @@ CONTROL_CHANNEL_BYTE = "\x80"
 
 CONTROL_CHECK 			= "XFLT>CHECK!"
 CONTROL_CHECK_RESULT 	= "XFLT>CHECK_RESULT"
+CONTROL_INIT 			= "XFLT>INIT!"
+CONTROL_INIT_DONE		= "XFLT>INIT_DONE"
+CONTROL_LOGOFF			= "XFLT>LOGOFF!"
+CONTROL_DUMMY_PACKET 	= "XFLT>DUMMY_PACKET"
+# TODO DEL AUTH
 CONTROL_AUTH 			= "XFLT>AUTH!"
 CONTROL_AUTH_OK 		= "XFLT>AUTH_OK"
 CONTROL_AUTH_NOTOK 		= "XFLT>AUTH_NOTOK"
-CONTROL_LOGOFF 			= "XFLT>LOGOFF!"
-CONTROL_DUMMY_PACKET 	= "XFLT>DUMMY_PACKET"
+
 
 # Multi Operating System support values
 OS_UNKNOWN	= 0
@@ -107,11 +111,11 @@ def check_modules_installed():
 
 	# reqs = [["module_name", "package_name"], [...]]
 	if os_type == OS_LINUX:
-		reqs = [["pyroute2","pyroute2"], ["sctp","sctp"]]
+		reqs = [["cryptography", "cryptography"], ["pyroute2","pyroute2"], ["sctp","pysctp"]]
 	if os_type == OS_MACOSX:
-		reqs = []
+		reqs = [["cryptography", "cryptography"]]
 	if os_type == OS_WINDOWS:
-		reqs = [["win32file","pywin32"]]
+		reqs = [["cryptography", "cryptography"], ["win32file","pywin32"]]
 
 	allinstalled = True
 	for m in reqs:
@@ -303,63 +307,7 @@ def is_control_channel(control_character):
 	else:
 		return False
 
-# initialization of the stateful client object
-# TODO: shouldn't it to be in the Stateful module?
-def init_client_stateful(msg, addr, client, packetselector, stopfp):
-	## TODO error handling
-	client_private_ip = msg[0:4]
-	client_public_source_ip = socket.inet_aton(addr[0])
-	client_public_source_port = addr[1]
-
-	# If this private IP is already used, the server removes that client.
-	# For example: client reconnect on connection reset, duplicated configs
-	# and yes, this can be used to kick somebody off the tunnel
-	for c in packetselector.get_clients():
-		if c.get_private_ip_addr() == client_private_ip:
-			packetselector.delete_client(c)
-
-	# creating new pipes for the client
-	if get_os_type() == OS_WINDOWS:
-		import win32pipe
-		import win32file
-		import pywintypes
-		import win32event
-
-		import win32api
-		import winerror
-
-		overlapped = pywintypes.OVERLAPPED()
-		# setting up writable named pipe
-		mailslotname = "\\\\.\\mailslot\\XFLTReaT_{0}".format(socket.inet_ntoa(client_private_ip))
-
-		mailslot_r = win32file.CreateMailslot(mailslotname, 0, -1, None)
-		if (mailslot_r == None) or (mailslot_r == win32file.INVALID_HANDLE_VALUE):
-			internal_print("Invalid handle - mailslot", -1)
-			sys.exit(-1)
-
-		mailslot_w = win32file.CreateFile(mailslotname, win32file.GENERIC_WRITE,
-			win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE, None, win32file.OPEN_EXISTING,
-			win32file.FILE_ATTRIBUTE_NORMAL | win32file.FILE_FLAG_OVERLAPPED, None)
-		if (mailslot_w == None) or (mailslot_w == win32file.INVALID_HANDLE_VALUE):
-			internal_print("Invalid handle - readable pipe", -1)
-			sys.exit(-1)
-
-		client.set_pipes_fdnum(mailslot_r, mailslot_w)
-
-	else:
-		pipe_r, pipe_w = os.pipe()
-		client.set_pipes_fdnum(pipe_r, pipe_w)
-		client.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
-
-	# set connection related things and authenticated to True
-	client.set_public_ip_addr(client_public_source_ip)
-	client.set_public_src_port(client_public_source_port)
-	client.set_private_ip_addr(client_private_ip)
-	client.set_stopfp(stopfp)
-	client.set_authenticated(True)
-
-	return
-
+# DEL?
 # initialization of the stateless client object
 # TODO: shouldn't it to be in the Stateful module?
 def init_client_stateless(msg, addr, client, packetselector, clients):
@@ -395,6 +343,7 @@ def init_client_stateless(msg, addr, client, packetselector, clients):
 
 	return
 
+#DEL?
 # remove client from client list and close down the pipes
 def delete_client_stateless(clients, client):
 	clients.remove(client)

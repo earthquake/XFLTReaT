@@ -30,8 +30,6 @@ if "controlchannel.py" in sys.argv[0]:
 import common
 
 class ControlChannel():
-
-
 	# control messages are handled here
 	# check: solve the challenge and send back the result to the client
 	# check_check: does the result match the expectation?
@@ -71,6 +69,21 @@ class ControlChannel():
 
 		return module.cmh_struct[cm][4]
 
+	def cmh_init(self, module, message, additional_data, cm):
+		common.internal_print("Client initialization started: {0}".format(module.module_name))
+		module.init_client(message[len(common.CONTROL_INIT):], additional_data)
+		module.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT_DONE, additional_data)
+
+		module.post_init_server(message, additional_data)
+
+		return module.cmh_struct[cm][3]
+
+	def cmh_init_done(self, module, message, additional_data, cm):
+		module.post_init_client(message, additional_data)
+
+		return module.cmh_struct[cm][3]
+
+	'''
 	# auth: authentication request received, authenticate client
 	def cmh_auth(self, module, message, additional_data, cm):
 		if module.auth_module.check_details(message[len(common.CONTROL_AUTH):]):
@@ -99,9 +112,10 @@ class ControlChannel():
 
 		return module.cmh_struct[cm][4]
 
+	'''
 	# logoff: break the loop, cleanup will delete client, exiting thread
 	def cmh_logoff(self, module, message, additional_data, cm):
-		module.remove_authenticated_client(additional_data)
+		module.remove_initiated_client(message, additional_data)
 		common.internal_print("Client logged off: {0}".format(module.module_name))
 
 		return module.cmh_struct[cm][3]

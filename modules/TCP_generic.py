@@ -35,11 +35,12 @@ import threading
 
 #local files
 import Stateful_module
+import encryption
 import client
 import common
 
 class TCP_generic_thread(Stateful_module.Stateful_thread):
-	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name):
+	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, authentication, encryption_module, verbosity, config, module_name):
 		super(TCP_generic_thread, self).__init__()
 		threading.Thread.__init__(self)
 		self._stop = False
@@ -49,7 +50,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 		self.packetselector = packetselector
 		self.comms_socket = comms_socket
 		self.client_addr = client_addr
-		self.auth_module = auth_module
+		self.authentication = authentication
 		self.verbosity = verbosity
 		self.serverorclient = serverorclient
 		self.config = config
@@ -61,42 +62,19 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 		self.client = None
 		self.authenticated = False
 
+		self.encryption = encryption.Encryption_details()
+		self.encryption.set_module(encryption_module)
+
 		return
 
 	def communication_initialization(self):
-		self.client = client.Client()
-		self.client.set_socket(self.comms_socket)
-
-		return
-
-	# check request: generating a challenge and sending it to the server
-	# in case the answer is that is expected, the targer is a valid server
-	def do_check(self):
-		message, self.check_result = self.checks.check_default_generate_challenge()
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, None)
-
-		return
-
-	# basic authentication support. mostly placeholder for a proper 
-	# authentication. Time has not come yet.
-	def do_auth(self):
-		message = self.auth_module.send_details(self.config.get("Global", "clientip"))
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH+message, None)
-
-		return
-
-	# Polite signal towards the server to tell that the client is leaving
-	# Can be spoofed? if there is no encryption. Who cares?
-	def do_logoff(self):
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, None)
-
 		return
 
 	def send(self, channel_type, message, additional_data):
 		if channel_type == common.CONTROL_CHANNEL_BYTE:
-			transformed_message = self.transform(common.CONTROL_CHANNEL_BYTE+message, 1)
+			transformed_message = self.transform(self.encryption, common.CONTROL_CHANNEL_BYTE+message, 1)
 		else:
-			transformed_message = self.transform(common.DATA_CHANNEL_BYTE+message, 1)
+			transformed_message = self.transform(self.encryption, common.DATA_CHANNEL_BYTE+message, 1)
 
 		common.internal_print("TCP sent: {0}".format(len(transformed_message)), 0, self.verbosity, common.DEBUG)
 
@@ -121,6 +99,10 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 	def recv(self):
 		messages = []
 		message = self.partial_message + self.comms_socket.recv(4096)
+		if len(message) == len(self.partial_message):
+			# TODO: check other module if they have this
+			# 0 length read, socket died
+			self._stop = True
 
 		if len(message) < 2:
 			return messages
@@ -128,7 +110,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 		while True:
 			length = struct.unpack(">H", message[0:2])[0]+2
 			if len(message) >= length:
-				messages.append(self.transform(message[2:length], 0))
+				messages.append(self.transform(self.encryption, message[2:length], 0))
 				common.internal_print("TCP read: {0}".format(len(messages[len(messages)-1])), 0, self.verbosity, common.DEBUG)
 				self.partial_message = ""
 				message = message[length:]
@@ -288,6 +270,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 								continue
 
 							if common.is_control_channel(message[0:1]):
+								print message[len(common.CONTROL_CHANNEL_BYTE):]
 								if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], None):
 									continue
 								else:
@@ -391,7 +374,7 @@ class TCP_generic(Stateful_module.Stateful_module):
 				common.internal_print(("Client connected: {0}".format(client_addr)), 0, self.verbosity, common.DEBUG)
 
 				threadsnum = threadsnum + 1
-				thread = TCP_generic_thread(threadsnum, 1, self.tunnel, self.packetselector, client_socket, client_addr, self.auth_module, self.verbosity, self.config, self.get_module_name())
+				thread = TCP_generic_thread(threadsnum, 1, self.tunnel, self.packetselector, client_socket, client_addr, self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
 				thread.start()
 				self.threads.append(thread)
 			if self._stop:
@@ -418,8 +401,8 @@ class TCP_generic(Stateful_module.Stateful_module):
 			server_socket.settimeout(3)
 			server_socket.connect((self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport"))))
 
-			client_fake_thread = TCP_generic_thread(0, 0, self.tunnel, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
-			client_fake_thread.do_auth()
+			client_fake_thread = TCP_generic_thread(0, 0, self.tunnel, None, server_socket, None, self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
+			client_fake_thread.do_hello()
 			client_fake_thread.communication(False)
 
 		except KeyboardInterrupt:
@@ -443,7 +426,7 @@ class TCP_generic(Stateful_module.Stateful_module):
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			server_socket.settimeout(3)
 			server_socket.connect((self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport"))))
-			client_fake_thread = TCP_generic_thread(0, 0, None, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
+			client_fake_thread = TCP_generic_thread(0, 0, None, None, server_socket, None, self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
 			client_fake_thread.do_check()
 			client_fake_thread.communication(True)
 

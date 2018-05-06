@@ -38,6 +38,7 @@ import threading
 from Generic_module import Generic_module
 from interface import Interface
 import controlchannel
+import packetselector
 import client
 import common
 import threading
@@ -58,10 +59,9 @@ class Stateful_thread(threading.Thread):
 			# in case of Stateless modules, the whole module terminates if the return value is False
 			0  : [common.CONTROL_CHECK, 		self.controlchannel.cmh_check_query, 1, True, False],
 			1  : [common.CONTROL_CHECK_RESULT, 	self.controlchannel.cmh_check_check, 0, True, False],
-			2  : [common.CONTROL_AUTH, 			self.controlchannel.cmh_auth, 1, True, False],
-			3  : [common.CONTROL_AUTH_OK, 		self.controlchannel.cmh_auth_ok, 0, True, False],
-			4  : [common.CONTROL_AUTH_NOTOK, 	self.controlchannel.cmh_auth_not_ok, 0, True, False],
-			5  : [common.CONTROL_LOGOFF, 		self.controlchannel.cmh_logoff, 1, False, False]
+			2  : [common.CONTROL_INIT, 			self.controlchannel.cmh_init, 1, True, False],
+			3  : [common.CONTROL_INIT_DONE, 	self.controlchannel.cmh_init_done, 0, True, False],
+			4  : [common.CONTROL_LOGOFF, 		self.controlchannel.cmh_logoff, 1, False, False],
 		}
 
 		self.packet_writer = self.packet_writer_default
@@ -79,24 +79,26 @@ class Stateful_thread(threading.Thread):
 
 		return
 
-	def auth_ok_setup(self, additional_data):
-		self.tunnel_r = self.tunnel_w
-		return
+	def is_caller_stateless(self):
+		return 0
 
+	# is the new cmh list already in the control message handler structure?
+	def is_in_cmh_already(self, _list):
+		if len(_list) and len(self.cmh_struct):
+			found = False
+			for l in self.cmh_struct:
+				if self.cmh_struct[l] == _list[0]:
+					found = True
 
-	def setup_authenticated_client(self, control_message, additional_data):
-		common.init_client_stateful(control_message, self.client_addr, self.client, self.packetselector, self.stop)
-		self.client.set_socket(self.comms_socket)
-		self.tunnel_r = self.client.get_pipe_r()
-		self.packetselector.add_client(self.client)
-		self.authenticated = self.client.get_authenticated()
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH_OK, additional_data)
+		return found
 
-		return
-
-	def remove_authenticated_client(self, additional_data):
-		# module should remove the client on server side in cleanup()
-		return
+	# merging control message handlers into the Stateful's original's
+	def merge_cmh(self, _list):
+		if self.is_in_cmh_already(_list):
+			return
+		size = len(self.cmh_struct)
+		for entry in _list:
+			self.cmh_struct[size+entry] = _list[entry]
 
 	# This function writes the packet to the tunnel.
 	# Windows version of the packet writer
@@ -137,9 +139,151 @@ class Stateful_thread(threading.Thread):
 	# TODO: placeholder function to transform packets back and forth.
 	# encryption, encodings anything that should be done on the packet and 
 	# should be easily variable based on the config
-	def transform(self, packet, encrypt):
+	def transform(self, details, packet, encrypt):
+		if details.get_encrypted():
+			if encrypt:
+				return details.get_module().encrypt(details.get_shared_key(), packet)
+			else:
+				return details.get_module().decrypt(details.get_shared_key(), packet)
+		else:
+			return packet
 
-		return packet
+	def get_client(self, additional_data):
+		return self.client
+
+	def get_client_encryption(self, additional_data):
+		return self.encryption
+
+	def init_client(self, control_message, additional_data):
+		self.client = client.Client()
+		self.client.set_socket(self.comms_socket)
+
+		client_private_ip = control_message[0:4]
+		client_public_source_ip = socket.inet_aton(self.client_addr[0])
+		client_public_source_port = self.client_addr[1]
+
+		# If this private IP is already used, the server removes that client.
+		# For example: client reconnect on connection reset, duplicated configs
+		# and yes, this can be used to kick somebody off the tunnel
+		for c in self.packetselector.get_clients():
+			if c.get_private_ip_addr() == client_private_ip:
+				self.packetselector.delete_client(c)
+
+		# creating new pipes for the client
+		if self.os_type == common.OS_WINDOWS:
+			import win32pipe
+			import win32file
+			import pywintypes
+			import win32event
+
+			import win32api
+			import winerror
+
+			overlapped = pywintypes.OVERLAPPED()
+			# setting up writable named pipe
+			mailslotname = "\\\\.\\mailslot\\XFLTReaT_{0}".format(socket.inet_ntoa(client_private_ip))
+
+			mailslot_r = win32file.CreateMailslot(mailslotname, 0, -1, None)
+			if (mailslot_r == None) or (mailslot_r == win32file.INVALID_HANDLE_VALUE):
+				internal_print("Invalid handle - mailslot", -1)
+				sys.exit(-1)
+
+			mailslot_w = win32file.CreateFile(mailslotname, win32file.GENERIC_WRITE,
+				win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE, None, win32file.OPEN_EXISTING,
+				win32file.FILE_ATTRIBUTE_NORMAL | win32file.FILE_FLAG_OVERLAPPED, None)
+			if (mailslot_w == None) or (mailslot_w == win32file.INVALID_HANDLE_VALUE):
+				internal_print("Invalid handle - readable pipe", -1)
+				sys.exit(-1)
+
+			self.client.set_pipes_fdnum(mailslot_r, mailslot_w)
+
+		else:
+			pipe_r, pipe_w = os.pipe()
+			self.client.set_pipes_fdnum(pipe_r, pipe_w)
+			self.client.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
+
+		# set connection related things and authenticated to True
+		self.client.set_public_ip_addr(client_public_source_ip)
+		self.client.set_public_src_port(client_public_source_port)
+		self.client.set_private_ip_addr(client_private_ip)
+		self.client.set_stopfp(self.stop)
+
+		# unifying encryption variable
+
+		self.client.get_encryption().set_module(self.encryption.get_module())
+		self.encryption = self.client.get_encryption()
+
+		if self.encryption.get_module().get_step_count():
+			# add encryption steps
+			self.merge_cmh(self.encryption.get_module().get_cmh_struct())
+
+		if self.authentication.get_step_count():
+			# add authentication steps
+			self.merge_cmh(self.authentication.get_cmh_struct())
+
+		self.client.set_initiated(True)
+
+		return
+
+	def remove_initiated_client(self, control_message, additional_data):
+		# module should remove the client on server side in cleanup()
+		return
+
+	def post_init_client(self, control_message, additional_data):
+		if not self.encryption.get_module().get_step_count():
+			# no encryption
+			self.post_encryption_client(control_message, additional_data)
+		else:
+			# add encryption steps
+			self.merge_cmh(self.encryption.get_module().get_cmh_struct())
+			# get and send encryption initialization message
+			message = self.encryption.get_module().encryption_init_msg()
+			self.send(common.CONTROL_CHANNEL_BYTE, message, None)
+
+		return
+
+	# PLACEHOLDER for future needs
+	def post_init_server(self, control_message, additional_data):
+		return
+
+	# not sure if this is the right way
+	def post_encryption_client(self, control_message, additional_data):
+		if not self.authentication.get_step_count():
+			# no encryption
+			self.post_authentication_client()
+		else:
+			# add encryption steps
+			self.merge_cmh(self.authentication.get_cmh_struct())
+			# get and send encryption initialization message
+
+			message = self.authentication.authentication_init_msg()
+			self.send(common.CONTROL_CHANNEL_BYTE, message, None)
+		
+
+		return
+
+	# PLACEHOLDER for future needs
+	def post_encryption_server(self, control_message, additional_data):
+		return
+
+	def post_authentication_client(self, control_message, additional_data):
+		self.tunnel_r = self.tunnel_w
+		self.authenticated = True
+		return
+
+	# server side
+	# if the client was initiated (first step was not skipped), then set
+	# the authenticated flag to True, add to packetselector and allow access
+	# the read only pipe (packets selected for the client)
+	def post_authentication_server(self, control_message, additional_data):
+		if self.client.get_initiated():
+			self.client.set_authenticated(True)
+			self.tunnel_r = self.client.get_pipe_r()
+			self.packetselector.add_client(self.client)
+			self.authenticated = self.client.get_authenticated()
+			return True
+
+		return False
 
 	# PLACEHOLDER: prolog for the communication
 	# What comes here: anything that should be set up before the actual
@@ -154,6 +298,31 @@ class Stateful_thread(threading.Thread):
 		self.communication(False)
 
 		return
+
+	# check request: generating a challenge and sending it to the server
+	# in case the answer is that is expected, the targer is a valid server
+	def do_check(self):
+		message, self.check_result = self.checks.check_default_generate_challenge()
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, None)
+
+		return
+
+	# start talking to the server
+	# do authentication or encryption first
+	def do_hello(self):
+		# TODO: maybe change this later to push some more info, not only the 
+		# private IP
+		message = socket.inet_aton(self.config.get("Global", "clientip"))
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT+message, None)
+
+	# Polite signal towards the server to tell that the client is leaving
+	# Can be spoofed? if there is no encryption. Who cares?
+	def do_logoff(self):
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, None)
+
+		return
+
+	'''
 
 	# PLACEHOLDER: check function
 	# What comes here: generate challenge and send to the server
@@ -172,6 +341,7 @@ class Stateful_thread(threading.Thread):
 	def do_logoff(self):
 
 		return
+	'''
 
 	# stop thread and exit as soon as possible
 	def stop(self):

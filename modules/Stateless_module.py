@@ -39,6 +39,7 @@ from interface import Interface
 import controlchannel
 import client
 import common
+import encryption
 import threading
 import checks
 
@@ -57,11 +58,13 @@ class Stateless_module(Generic_module):
 			# in case of Stateless modules, the whole module terminates if the return value is False
 			0  : [common.CONTROL_CHECK, 		self.controlchannel.cmh_check_query, 1, True, True],
 			1  : [common.CONTROL_CHECK_RESULT, 	self.controlchannel.cmh_check_check, 0, True, False],
-			2  : [common.CONTROL_AUTH, 			self.controlchannel.cmh_auth, 1, True, True],
-			3  : [common.CONTROL_AUTH_OK, 		self.controlchannel.cmh_auth_ok, 0, True, False],
-			4  : [common.CONTROL_AUTH_NOTOK, 	self.controlchannel.cmh_auth_not_ok, 0, True, False],
-			5  : [common.CONTROL_LOGOFF, 		self.controlchannel.cmh_logoff, 1, True, False],
-			6  : [common.CONTROL_DUMMY_PACKET, 	self.controlchannel.cmh_dummy_packet, 1, True, True]
+			2  : [common.CONTROL_INIT, 			self.controlchannel.cmh_init, 1, True, True],
+			3  : [common.CONTROL_INIT_DONE, 	self.controlchannel.cmh_init_done, 0, True, False],
+			4  : [common.CONTROL_LOGOFF, 		self.controlchannel.cmh_logoff, 1, True, False],
+			5  : [common.CONTROL_DUMMY_PACKET, 	self.controlchannel.cmh_dummy_packet, 1, True, True],
+			#6  : [common.CONTROL_AUTH, 			self.controlchannel.cmh_auth, 1, True, True],
+			#7  : [common.CONTROL_AUTH_OK, 		self.controlchannel.cmh_auth_ok, 0, True, False],
+			#8  : [common.CONTROL_AUTH_NOTOK, 	self.controlchannel.cmh_auth_not_ok, 0, True, False]
 		}
 
 		self.packet_writer = self.packet_writer_default
@@ -79,31 +82,26 @@ class Stateless_module(Generic_module):
 
 		return
 
-	def auth_ok_setup(self, additional_data):
+	def is_caller_stateless(self):
+		return 1
 
-		return
+	# is the new cmh list already in the control message handler structure?
+	def is_in_cmh_already(self, _list):
+		if len(_list) and len(self.cmh_struct):
+			found = False
+			for l in self.cmh_struct:
+				if self.cmh_struct[l] == _list[0]:
+					found = True
 
-	def setup_authenticated_client(self, control_message, additional_data):
-		addr = additional_data # UDP specific
-		client_local = client.Client()
-		common.init_client_stateless(control_message, addr, client_local, self.packetselector, self.clients)
-		self.clients.append(client_local)
-		self.packetselector.add_client(client_local)
-		if client_local.get_pipe_r() not in self.rlist:
-			self.rlist.append(client_local.get_pipe_r())
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH_OK, additional_data)
+		return found
 
-		return
-
-	def remove_authenticated_client(self, additional_data):
-		addr = additional_data # UDP specific
-		c = common.lookup_client_pub(self.clients, addr)
-		if c:
-			self.packetselector.delete_client(c)
-			self.rlist.remove(c.get_pipe_r())
-			common.delete_client_stateless(self.clients, c)
-
-		return
+	# merging control message handlers into the Stateless' original's
+	def merge_cmh(self, _list):
+		if self.is_in_cmh_already(_list):
+			return
+		size = len(self.cmh_struct)
+		for entry in _list:
+			self.cmh_struct[size+entry] = _list[entry]
 
 	# This function writes the packet to the tunnel.
 	# Windows version of the packet writer
@@ -144,9 +142,193 @@ class Stateless_module(Generic_module):
 	# TODO: placeholder function to transform packets back and forth.
 	# encryption, encodings anything that should be done on the packet and 
 	# should be easily variable based on the config
-	def transform(self, packet, encrypt):
+	def transform(self, details, packet, encrypt):
+		if details.get_encrypted():
+			if encrypt:
+				return details.get_module().encrypt(details.get_shared_key(), packet)
+			else:
+				return details.get_module().decrypt(details.get_shared_key(), packet)
+		else:
+			return packet
 
-		return packet
+
+	def get_client(self, additional_data):
+		addr = additional_data # UDP, WILL FAIL WITH ICMP and others TODO
+		return common.lookup_client_pub(self.clients, addr)
+
+	def get_client_encryption(self, additional_data):
+		if self.serverorclient:
+			addr = additional_data # UDP, WILL FAIL WITH ICMP and others TODO
+			c = common.lookup_client_pub(self.clients, addr)
+			if c:
+				return c.get_encryption()
+			else:
+				e = encryption.Encryption_details()
+				e.set_module(self.encryption_module)
+				return e
+		else:
+			return self.encryption
+
+	def init_client(self, control_message, additional_data):
+		addr = additional_data # UDP specific
+		client_local = client.Client()
+
+		#common.init_client_stateless(control_message, addr, client_local, self.packetselector, self.clients)
+
+		client_private_ip = control_message[0:4]
+		client_public_source_ip = socket.inet_aton(addr[0])
+		client_public_source_port = addr[1]
+
+		# If this private IP is already used, the server removes that client.
+		# For example: client reconnect on connection reset, duplicated configs
+		# and yes, this can be used to kick somebody off the tunnel
+
+		# close client related pipes
+		# TODO it should go after the ps remove below.
+		for c in self.clients:
+			if c.get_private_ip_addr() == client_private_ip:
+				save_to_close = c
+				self.clients.remove(c)
+
+		found = False
+		for c in self.packetselector.get_clients():
+			if c.get_private_ip_addr() == client_private_ip:
+				found = True
+				self.packetselector.delete_client(c)
+
+		# If client was created but not added to the PacketSelector, then the
+		# pipes still need to be closed. This could happen when the authenti-
+		# cation fails or gets interrupted.
+		if not found:
+			if self.os_type == common.OS_WINDOWS:
+				import win32file
+
+				try:
+					win32file.CloseHandle(save_to_close.get_pipe_r())
+					win32file.CloseHandle(save_to_close.get_pipe_w())
+				except:
+					pass
+			else:
+				try:
+					save_to_close.get_pipe_r_fd().close()
+					save_to_close.get_pipe_w_fd().close()
+				except:
+					pass
+
+		# creating new pipes for the client
+		pipe_r, pipe_w = os.pipe()
+		client_local.set_pipes_fdnum(pipe_r, pipe_w)
+		client_local.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
+
+		# set connection related things and authenticated to True
+		client_local.set_public_ip_addr(client_public_source_ip)
+		client_local.set_public_src_port(client_public_source_port)
+		client_local.set_private_ip_addr(client_private_ip)
+
+
+
+
+		client_local.get_encryption().set_module(self.encryption.get_module())
+		# ?????
+		self.encryption = client_local.get_encryption()
+
+		if self.encryption.get_module().get_step_count():
+			# add encryption steps
+			self.merge_cmh(self.encryption.get_module().get_cmh_struct())
+
+		if self.authentication.get_step_count():
+			# add authentication steps
+			self.merge_cmh(self.authentication.get_cmh_struct())
+
+		client_local.set_initiated(True)
+
+		self.clients.append(client_local)
+
+		'''
+		self.client = client.Client()
+		self.client.set_socket(self.comms_socket)
+
+		# unifying encryption variable
+
+		self.client.get_encryption().set_module(self.encryption.get_module())
+		self.encryption = self.client.get_encryption()
+
+		if self.encryption.get_module().get_step_count():
+			# add encryption steps
+			self.merge_cmh(self.encryption.get_module().get_cmh_struct())
+		'''
+
+		return
+
+	def remove_initiated_client(self, control_message, additional_data):
+		addr = additional_data # UDP specific
+		c = common.lookup_client_pub(self.clients, addr)
+		if c:
+			self.packetselector.delete_client(c)
+			if c.get_authenticated():
+				self.rlist.remove(c.get_pipe_r())
+			self.clients.remove(c)
+
+		return
+
+	def post_init_client(self, control_message, additional_data):
+		if not self.encryption.get_module().get_step_count():
+			# no encryption
+			self.post_encryption_client(control_message, additional_data)
+		else:
+			# add encryption steps
+			self.merge_cmh(self.encryption.get_module().get_cmh_struct())
+			# get and send encryption initialization message
+			message = self.encryption.get_module().encryption_init_msg()
+			self.send(common.CONTROL_CHANNEL_BYTE, message, additional_data)
+
+		return
+
+
+	# PLACEHOLDER for future needs
+	def post_init_server(self, control_message, additional_data):
+		return
+
+	# not sure if this is the right way
+	def post_encryption_client(self, control_message, additional_data):
+		if not self.authentication.get_step_count():
+			# no encryption
+			self.post_authentication_client()
+		else:
+			# add encryption steps
+			self.merge_cmh(self.authentication.get_cmh_struct())
+			# get and send encryption initialization message
+
+			message = self.authentication.authentication_init_msg()
+			self.send(common.CONTROL_CHANNEL_BYTE, message, additional_data)
+		
+
+		return
+
+	# PLACEHOLDER for future needs
+	def post_encryption_server(self, control_message, additional_data):
+		return
+
+
+	def post_authentication_client(self, control_message, additional_data):
+		self.authenticated = True
+		return
+
+	# server side
+	# if the client was initiated (first step was not skipped), then set
+	# the authenticated flag to True, add to packetselector and allow access
+	# the read only pipe (packets selected for the client)
+	def post_authentication_server(self, control_message, additional_data):
+		addr = additional_data # UDP specific
+		c = common.lookup_client_pub(self.clients, addr)
+		if c.get_initiated():
+			c.set_authenticated(True)
+			self.packetselector.add_client(c)
+			if c.get_pipe_r() not in self.rlist:
+				self.rlist.append(c.get_pipe_r())
+			return True
+
+		return False
 
 	# PLACEHOLDER: prolog for the communication
 	# What comes here: anything that should be set up before the actual
@@ -155,6 +337,30 @@ class Stateless_module(Generic_module):
 
 		return
 
+	# check request: generating a challenge and sending it to the server
+	# in case the answer is that is expected, the targer is a valid server
+	def do_check(self):
+		message, self.check_result = self.checks.check_default_generate_challenge()
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, (self.server_tuple))
+
+		return
+
+	# start talking to the server
+	# do authentication or encryption first
+	def do_hello(self):
+		# TODO: maybe change this later to push some more info, not only the 
+		# private IP
+		message = socket.inet_aton(self.config.get("Global", "clientip"))
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT+message, (self.server_tuple))
+
+	# Polite signal towards the server to tell that the client is leaving
+	# Can be spoofed? if there is no encryption. Who cares?
+	def do_logoff(self):
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, (self.server_tuple))
+
+		return
+
+	'''
 	# PLACEHOLDER: check function
 	# What comes here: generate challenge and send to the server
 	def do_check(self):
@@ -172,6 +378,7 @@ class Stateless_module(Generic_module):
 	def do_logoff(self):
 
 		return
+	'''
 
 	# PLACEHOLDER: implementation of wrapping and sending message
 	# What comes here: marking message (control or data), transforming (see
