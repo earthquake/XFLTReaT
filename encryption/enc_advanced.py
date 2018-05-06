@@ -107,15 +107,15 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 			if answer == "yes":
 				if not self.add_fingerprint(ip, pubkey_hash):
 					common.internal_print("Error opening known_hosts file.", -1)
-					return module.cmh_struct[cm][4+module.is_caller_stateless(module)]
+					return module.cmh_struct[cm][4+module.is_caller_stateless()]
 			else:
 				common.internal_print("Exiting...", -1)
-				return module.cmh_struct[cm][4+module.is_caller_stateless(module)]
+				return module.cmh_struct[cm][4+module.is_caller_stateless()]
 
 		if fingerprint == 1:
 			common.internal_print("The fingerprint has changed for the server. If you don't trust this network,\nthis can be a Man-in-The-Middle attack!", -1)
 			common.internal_print("Exiting...", -1)
-			return module.cmh_struct[cm][4+module.is_caller_stateless(module)]
+			return module.cmh_struct[cm][4+module.is_caller_stateless()]
 
 		public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+server_public_key_stream)
 		server_public_key = public_numbers.public_key(default_backend())
