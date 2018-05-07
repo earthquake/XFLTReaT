@@ -41,8 +41,8 @@ import common
 import support.socks_proto as SOCKS_proto
 
 class SOCKS_thread(TCP_generic.TCP_generic_thread):
-	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name):
-		super(SOCKS_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name)
+	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, encryption_module, verbosity, config, module_name):
+		super(SOCKS_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, encryption_module, verbosity, config, module_name)
 
 class SOCKS(TCP_generic.TCP_generic):
 
@@ -188,6 +188,7 @@ class SOCKS(TCP_generic.TCP_generic):
 	def sanity_check(self):
 		if not super(SOCKS, self).sanity_check():
 			return False
+
 		if not self.config.has_option(self.get_module_configname(), "proxyip"):
 			common.internal_print("'proxyip' option is missing from '{0}' section".format(self.get_module_configname()), -1)
 
@@ -203,6 +204,24 @@ class SOCKS(TCP_generic.TCP_generic):
 
 			return False
 
+		if not self.config.has_option(self.get_module_configname(), "version"):
+			common.internal_print("'version' option is missing from '{0}' section".format(self.get_module_configname()), -1)
+
+			return False
+
+		version = self.config.get(self.get_module_configname(), "version")
+
+		if version == "5":
+			if not self.config.has_option(self.get_module_configname(), "usernamev5"):
+				common.internal_print("'usernamev5' option is missing from '{0}' section".format(self.get_module_configname()), -1)
+
+				return False
+
+			if not self.config.has_option(self.get_module_configname(), "passwordv5"):
+				common.internal_print("'passwordv5' option is missing from '{0}' section".format(self.get_module_configname()), -1)
+				
+				return False
+
 		return True
 
 	def connect(self):
@@ -217,8 +236,8 @@ class SOCKS(TCP_generic.TCP_generic):
 			server_socket.connect((self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
 			if self.socks_handshake(server_socket):
-				client_fake_thread = SOCKS_thread(0, 0, self.tunnel, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
-				client_fake_thread.do_auth()
+				client_fake_thread = SOCKS_thread(0, 0, self.tunnel, None, server_socket, None, self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
+				client_fake_thread.do_hello()
 				client_fake_thread.communication(False)
 
 			server_socket.close()
@@ -248,7 +267,7 @@ class SOCKS(TCP_generic.TCP_generic):
 			server_socket.connect((self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
 			if self.socks_handshake(server_socket):
-				client_fake_thread = SOCKS_thread(0, 0, None, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
+				client_fake_thread = SOCKS_thread(0, 0, None, None, server_socket, None, self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
 				client_fake_thread.do_check()
 				client_fake_thread.communication(True)
 

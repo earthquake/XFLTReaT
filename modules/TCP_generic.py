@@ -270,7 +270,6 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 								continue
 
 							if common.is_control_channel(message[0:1]):
-								print message[len(common.CONTROL_CHANNEL_BYTE):]
 								if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], None):
 									continue
 								else:
