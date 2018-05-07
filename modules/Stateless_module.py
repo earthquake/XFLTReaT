@@ -139,7 +139,7 @@ class Stateless_module(Generic_module):
 		packet = os.read(tunnel, 4096)
 		return packet
 
-	# TODO: placeholder function to transform packets back and forth.
+	# function to transform packets back and forth.
 	# encryption, encodings anything that should be done on the packet and 
 	# should be easily variable based on the config
 	def transform(self, details, packet, encrypt):
@@ -153,12 +153,12 @@ class Stateless_module(Generic_module):
 
 
 	def get_client(self, additional_data):
-		addr = additional_data # UDP, WILL FAIL WITH ICMP and others TODO
+		addr = additional_data[0]
 		return common.lookup_client_pub(self.clients, addr)
 
 	def get_client_encryption(self, additional_data):
 		if self.serverorclient:
-			addr = additional_data # UDP, WILL FAIL WITH ICMP and others TODO
+			addr = additional_data[0]
 			c = common.lookup_client_pub(self.clients, addr)
 			if c:
 				return c.get_encryption()
@@ -170,7 +170,7 @@ class Stateless_module(Generic_module):
 			return self.encryption
 
 	def init_client(self, control_message, additional_data):
-		addr = additional_data # UDP specific
+		addr = additional_data[0]
 		client_local = client.Client()
 
 		#common.init_client_stateless(control_message, addr, client_local, self.packetselector, self.clients)
@@ -184,7 +184,6 @@ class Stateless_module(Generic_module):
 		# and yes, this can be used to kick somebody off the tunnel
 
 		# close client related pipes
-		# TODO it should go after the ps remove below.
 		for c in self.clients:
 			if c.get_private_ip_addr() == client_private_ip:
 				save_to_close = c
@@ -261,7 +260,7 @@ class Stateless_module(Generic_module):
 		return
 
 	def remove_initiated_client(self, control_message, additional_data):
-		addr = additional_data # UDP specific
+		addr = additional_data[0] # UDP specific
 		c = common.lookup_client_pub(self.clients, addr)
 		if c:
 			self.packetselector.delete_client(c)
@@ -319,7 +318,7 @@ class Stateless_module(Generic_module):
 	# the authenticated flag to True, add to packetselector and allow access
 	# the read only pipe (packets selected for the client)
 	def post_authentication_server(self, control_message, additional_data):
-		addr = additional_data # UDP specific
+		addr = additional_data[0] # UDP specific
 		c = common.lookup_client_pub(self.clients, addr)
 		if c.get_initiated():
 			c.set_authenticated(True)
@@ -341,7 +340,7 @@ class Stateless_module(Generic_module):
 	# in case the answer is that is expected, the targer is a valid server
 	def do_check(self):
 		message, self.check_result = self.checks.check_default_generate_challenge()
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, (self.server_tuple))
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, (self.server_tuple, None))
 
 		return
 
@@ -351,12 +350,12 @@ class Stateless_module(Generic_module):
 		# TODO: maybe change this later to push some more info, not only the 
 		# private IP
 		message = socket.inet_aton(self.config.get("Global", "clientip"))
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT+message, (self.server_tuple))
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT+message, (self.server_tuple, None))
 
 	# Polite signal towards the server to tell that the client is leaving
 	# Can be spoofed? if there is no encryption. Who cares?
 	def do_logoff(self):
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, (self.server_tuple))
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, (self.server_tuple, None))
 
 		return
 
