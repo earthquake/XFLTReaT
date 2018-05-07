@@ -72,10 +72,10 @@ class UDP_generic(Stateless_module.Stateless_module):
 		return self.comms_socket.sendto(struct.pack(">H", len(transformed_message))+transformed_message, addr)
 
 	def recv(self):
-		message = ""
-		length2b, addr = self.comms_socket.recvfrom(2, socket.MSG_PEEK)
+		messages = {}
+		message, addr = self.comms_socket.recvfrom(4096)
 
-		if len(length2b) == 0:
+		if len(message) == 0:
 			if self.serverorclient:
 				common.internal_print("WTF? Client lost. Closing down thread.", -1)
 			else:
@@ -83,18 +83,26 @@ class UDP_generic(Stateless_module.Stateless_module):
 
 			return ("", None)
 
-		if len(length2b) != 2:
-			return ("", None)
-		
-		length = struct.unpack(">H", length2b)[0]+2
-		message, addr = self.comms_socket.recvfrom(length, socket.MSG_TRUNC)
-		if (length != len(message)):
-			common.internal_print("Error length mismatch", -1)
-			return ("", None)
+		while True:
+			if addr not in messages:
+				messages[addr] = []
 
-		common.internal_print("UDP read: {0}".format(len(message)-2), 0, self.verbosity, common.DEBUG)
+			length = struct.unpack(">H", message[0:2])[0]+2
+			if len(message) == length:
+				messages[addr].append(self.transform(self.encryption, message[2:length], 0))
+				common.internal_print("UDP read: {0}".format(len(messages[addr][len(messages[addr])-1])), 0, self.verbosity, common.DEBUG)
+				message = message[length:]
+			else:
+				#debug
+				print "size did not match"
+				print "len(message): {0}".format(len(message))
+				print "length: {0}".format(length)
+				print "message: {0}".format(message)
 
-		return self.transform(self.get_client_encryption((addr, None)), message[2:], 0), addr
+			if len(message) == 0:
+				return messages
+
+		return messages
 
 	def communication_unix(self, is_check):
 		self.rlist = [self.comms_socket]
@@ -139,30 +147,32 @@ class UDP_generic(Stateless_module.Stateless_module):
 
 
 					if s is self.comms_socket:
-						message, addr = self.recv()
-						if len(message) == 0:
+						messages = self.recv()
+						if len(messages) == 0:
 							continue
 
-						c = None
-						if self.serverorclient:
-							self.authenticated = False
-							c = common.lookup_client_pub(self.clients, addr)
+						for addr in messages:
+							for message in messages[addr]:
+								c = None
+								if self.serverorclient:
+									self.authenticated = False
+									c = common.lookup_client_pub(self.clients, addr)
 
-						if common.is_control_channel(message[0:1]):
-							if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], (addr, None)):
-								continue
-							else:
-								self.stop()
-								break
+								if common.is_control_channel(message[0:1]):
+									if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], (addr, None)):
+										continue
+									else:
+										self.stop()
+										break
 
-						if c:
-							self.authenticated = c.get_authenticated()
-							
-						if self.authenticated:
-							try:
-								self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
-							except OSError as e:
-								print(e)
+								if c:
+									self.authenticated = c.get_authenticated()
+
+								if self.authenticated:
+									try:
+										self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
+									except OSError as e:
+										print(e)
 
 			except (socket.error, OSError):
 				raise
