@@ -41,8 +41,8 @@ import client
 import common
 
 class HTTP_CONNECT_thread(TCP_generic.TCP_generic_thread):
-	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name):
-		super(HTTP_CONNECT_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name)
+	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, encryption_module, verbosity, config, module_name):
+		super(HTTP_CONNECT_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, encryption_module, verbosity, config, module_name)
 
 class HTTP_CONNECT(TCP_generic.TCP_generic):
 
@@ -117,8 +117,8 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 			server_socket.connect((self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
 			if self.http_connect_request(server_socket):
-				client_fake_thread = HTTP_CONNECT_thread(0, 0, self.tunnel, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
-				client_fake_thread.do_auth()
+				client_fake_thread = HTTP_CONNECT_thread(0, 0, self.tunnel, None, server_socket, None, self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
+				client_fake_thread.do_hello()
 				client_fake_thread.communication(False)
 
 			server_socket.close()
@@ -147,7 +147,7 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 			server_socket.connect((self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
 			if self.http_connect_request(server_socket):
-				client_fake_thread = HTTP_CONNECT_thread(0, 0, None, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
+				client_fake_thread = HTTP_CONNECT_thread(0, 0, None, None, server_socket, None, self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
 				client_fake_thread.do_check()
 				client_fake_thread.communication(True)
 
