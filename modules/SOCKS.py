@@ -41,8 +41,8 @@ import common
 import support.socks_proto as SOCKS_proto
 
 class SOCKS_thread(TCP_generic.TCP_generic_thread):
-	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, encryption_module, verbosity, config, module_name):
-		super(SOCKS_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, encryption_module, verbosity, config, module_name)
+	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, authentication, encryption_module, verbosity, config, module_name):
+		super(SOCKS_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, authentication, encryption_module, verbosity, config, module_name)
 
 class SOCKS(TCP_generic.TCP_generic):
 
