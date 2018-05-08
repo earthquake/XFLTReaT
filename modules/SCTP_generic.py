@@ -36,181 +36,22 @@ import threading
 
 #local files
 import Stateful_module
+import TCP_generic
 import client
 import common
 
-class SCTP_generic_thread(Stateful_module.Stateful_thread):
-	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name):
-
-		super(SCTP_generic_thread, self).__init__()
+class SCTP_generic_thread(TCP_generic.TCP_generic_thread):
+	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, authentication, encryption_module, verbosity, config, module_name):
+		super(SCTP_generic_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, authentication, encryption_module, verbosity, config, module_name)
 		threading.Thread.__init__(self)
-		self._stop = False
-		self.threadID = threadID
-		self.tunnel_r = None
-		self.tunnel_w = tunnel
-		self.packetselector = packetselector
-		self.comms_socket = comms_socket
-		self.client_addr = client_addr
-		self.auth_module = auth_module
-		self.verbosity = verbosity
-		self.serverorclient = serverorclient
-		self.config = config
-		self.module_name = module_name
-		self.check_result = None
-		self.timeout = 3.0
-
-		self.client = None
-		self.authenticated = False
+		self.module_short = "SCTP"
 
 		return
 
-	def communication_initialization(self):
-		self.client = client.Client()
-		self.client.set_socket(self.comms_socket)
-
-		return
-
-	# check request: generating a challenge and sending it to the server
-	# in case the answer is that is expected, the targer is a valid server
-	def do_check(self):
-		message, self.check_result = self.checks.check_default_generate_challenge()
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, None)
-
-		return
-
-	# basic authentication support. mostly placeholder for a proper 
-	# authentication. Time has not come yet.
-	def do_auth(self):
-		message = self.auth_module.send_details(self.config.get("Global", "clientip"))
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH+message, None)
-
-		return
-
-	# Polite signal towards the server to tell that the client is leaving
-	# Can be spoofed? if there is no encryption. Who cares?
-	def do_logoff(self):
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, None)
-
-		return
-
-	def send(self, channel_type, message, additional_data):
-		if channel_type == common.CONTROL_CHANNEL_BYTE:
-			transformed_message = self.transform(common.CONTROL_CHANNEL_BYTE+message, 1)
-		else:
-			transformed_message = self.transform(common.DATA_CHANNEL_BYTE+message, 1)
-
-		common.internal_print("SCTP sent: {0}".format(len(transformed_message)), 0, self.verbosity, common.DEBUG)
-
-		return self.comms_socket.send(struct.pack(">H", len(transformed_message))+transformed_message)
-
-	def recv(self):
-		message = ""
-		length2b = self.comms_socket.recv(2, socket.MSG_PEEK)
-
-		if len(length2b) == 0:
-			if self.serverorclient:
-				common.internal_print("Client lost. Closing down thread.", -1)
-			else:
-				common.internal_print("Server lost. Closing down.", -1)
-			self.stop()
-			self.cleanup()
-
-			return ""
-
-		if len(length2b) != 2:
-
-			return ""
-
-		length = struct.unpack(">H", length2b)[0]+2
-		received = 0
-		while received < length:
-			message += self.comms_socket.recv(length-received)
-			received = len(message)
-
-		if (length != len(message)):
-			common.internal_print("Error length mismatch", -1)
-			return ""
-		common.internal_print("SCTP read: {0}".format(len(message)), 0, self.verbosity, common.DEBUG)
-
-		return self.transform(message[2:],0)
-
-
-	def cleanup(self):
-		try:
-			self.comms_socket.close()
-		except:
-			pass
-
-		if self.serverorclient:
-			self.packetselector.delete_client(self.client)
-
-	def communication_unix(self, is_check):
-		rlist = [self.comms_socket]
-		wlist = []
-		xlist = []
-
-		while not self._stop:
-			if self.tunnel_r:
-				rlist = [self.tunnel_r, self.comms_socket]
-			try:
-				readable, writable, exceptional = select.select(rlist, wlist, xlist, self.timeout)
-
-			except select.error, e:
-				break	
-			if self._stop:
-				self.comms_socket.close()
-				break
-			try:
-				for s in readable:
-					if (s is self.tunnel_r) and not self._stop:
-						message = self.packet_reader(self.tunnel_r, True, self.serverorclient)
-						while True:
-							if (len(message) < 4) or (message[0:1] != "\x45"): #Only care about IPv4
-								break
-							packetlen = struct.unpack(">H", message[2:4])[0] # IP Total length
-							if packetlen > len(message):
-								message += self.packet_reader(self.tunnel_r, False, self.serverorclient)
-							readytogo = message[0:packetlen]
-							message = message[packetlen:]
-							self.send(common.DATA_CHANNEL_BYTE, readytogo, None)
-
-					if (s is self.comms_socket) and not self._stop:
-						message = self.recv()
-						if len(message) == 0:
-							continue
-
-						if common.is_control_channel(message[0:1]):
-							if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], None):
-								continue
-							else:
-								self.stop()
-								break
-
-						if self.authenticated:
-							try:
-								self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
-							except OSError as e:
-								print(e) # wut?
-
-			except (socket.error, OSError, IOError):
-				if self.serverorclient:
-					common.internal_print("Client lost. Closing down thread.", -1)
-					self.cleanup()
-
-					return
-				if not self.serverorclient:
-					common.internal_print("Server lost. Closing connection.", -1)
-					self.comms_socket.close()
-				break
-			except:
-				print("another error")
-				raise
-
-		self.cleanup()
-
+	def communication_win(self, is_check):
 		return True
 
-class SCTP_generic(Stateful_module.Stateful_module):
+class SCTP_generic(TCP_generic.TCP_generic):
 	module_name = "SCTP generic"
 	module_configname = "SCTP_generic"
 	module_description = """Generic SCTP module that can listen on any port.
@@ -281,7 +122,7 @@ class SCTP_generic(Stateful_module.Stateful_module):
 				common.internal_print(("Client connected: {0}".format(client_addr)), 0, self.verbosity, common.DEBUG)
 
 				threadsnum = threadsnum + 1
-				thread = SCTP_generic_thread(threadsnum, 1, self.tunnel, self.packetselector, client_socket, client_addr, self.auth_module, self.verbosity, self.config, self.get_module_name())
+				thread = SCTP_generic_thread(threadsnum, 1, self.tunnel, self.packetselector, client_socket, client_addr, self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
 				thread.start()
 				self.threads.append(thread)
 			if self._stop:
@@ -308,8 +149,8 @@ class SCTP_generic(Stateful_module.Stateful_module):
 			server_socket.settimeout(3)
 			server_socket.connect((self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport"))))
 
-			client_fake_thread = SCTP_generic_thread(0, 0, self.tunnel, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
-			client_fake_thread.do_auth()
+			client_fake_thread = SCTP_generic_thread(0, 0, self.tunnel, None, server_socket, None, self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
+			client_fake_thread.do_hello()
 			client_fake_thread.communication(False)
 
 		except KeyboardInterrupt:
@@ -333,7 +174,7 @@ class SCTP_generic(Stateful_module.Stateful_module):
 			server_socket = self.sctp.sctpsocket_tcp(socket.AF_INET)
 			server_socket.settimeout(3)
 			server_socket.connect((self.config.get("Global", "remoteserverip"), int(self.config.get(self.get_module_configname(), "serverport"))))
-			client_fake_thread = SCTP_generic_thread(0, 0, None, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
+			client_fake_thread = SCTP_generic_thread(0, 0, None, None, server_socket, None, self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
 			client_fake_thread.do_check()
 			client_fake_thread.communication(True)
 

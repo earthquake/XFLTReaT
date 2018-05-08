@@ -58,6 +58,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 		self.check_result = None
 		self.timeout = 3.0
 		self.partial_message = ""
+		self.module_short = "TCP"
 
 		self.client = None
 		self.authenticated = False
@@ -76,7 +77,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 		else:
 			transformed_message = self.transform(self.encryption, common.DATA_CHANNEL_BYTE+message, 1)
 
-		common.internal_print("TCP sent: {0}".format(len(transformed_message)), 0, self.verbosity, common.DEBUG)
+		common.internal_print("{0} sent: {1}".format(self.module_short, len(transformed_message)), 0, self.verbosity, common.DEBUG)
 
 		# WORKAROUND?!
 		# Windows: It looks like when the buffer fills up the OS does not do
@@ -111,7 +112,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 			length = struct.unpack(">H", message[0:2])[0]+2
 			if len(message) >= length:
 				messages.append(self.transform(self.encryption, message[2:length], 0))
-				common.internal_print("TCP read: {0}".format(len(messages[len(messages)-1])), 0, self.verbosity, common.DEBUG)
+				common.internal_print("{0} read: {1}".format(self.module_short, len(messages[len(messages)-1])), 0, self.verbosity, common.DEBUG)
 				self.partial_message = ""
 				message = message[length:]
 			else:
@@ -179,7 +180,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 							continue
 					else:
 						if hr != 0:
-							common.internal_print("TCP ReadFile failed: {0}".format(hr), -1)
+							common.internal_print("{0} ReadFile failed: {1}".format(self.module_short, hr), -1)
 							raise
 
 				if rc < 0x80: # STATUS_ABANDONED_WAIT_0
@@ -354,7 +355,6 @@ class TCP_generic(Stateful_module.Stateful_module):
 			return False
 
 		return True
-
 
 	def serve(self):
 		client_socket = server_socket = None
