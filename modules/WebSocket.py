@@ -42,17 +42,15 @@ import common
 import support.websocket_proto as WebSocket_proto
 
 class WebSocket_thread(TCP_generic.TCP_generic_thread):
-	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name):
-		super(WebSocket_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, auth_module, verbosity, config, module_name)
+	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, authentication, encryption_module, verbosity, config, module_name):
+		super(WebSocket_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, client_addr, authentication, encryption_module, verbosity, config, module_name)
 
 		self.WebSocket_proto = WebSocket_proto.WebSocket_Proto()
 
 		return
 
 	def communication_initialization(self):
-		self.client = client.Client()
 		try:
-			self.client.set_socket(self.comms_socket)
 		
 			common.internal_print("Waiting for upgrade request", 0, self.verbosity, common.DEBUG)
 			response = self.comms_socket.recv(4096)
@@ -79,62 +77,72 @@ class WebSocket_thread(TCP_generic.TCP_generic_thread):
 
 	def send(self, channel_type, message, additional_data):
 		if channel_type == common.CONTROL_CHANNEL_BYTE:
-			transformed_message = self.transform(common.CONTROL_CHANNEL_BYTE+message, 1)
+			transformed_message = self.transform(self.encryption, common.CONTROL_CHANNEL_BYTE+message, 1)
 		else:
-			transformed_message = self.transform(common.DATA_CHANNEL_BYTE+message, 1)
+			transformed_message = self.transform(self.encryption, common.DATA_CHANNEL_BYTE+message, 1)
 
 		websocket_msg = self.WebSocket_proto.build_message(self.serverorclient, 2, transformed_message)
 
 		common.internal_print("WebSocket sent: {0} -> {1}".format(len(transformed_message), len(websocket_msg)), 0, self.verbosity, common.DEBUG)
-		
-		return self.comms_socket.send(websocket_msg)
+
+		# WORKAROUND?!
+		# Windows: It looks like when the buffer fills up the OS does not do
+		# congestion control, instead throws and exception/returns with
+		# WSAEWOULDBLOCK which means that we need to try it again later.
+		# So we sleep 100ms and hope that the buffer has more space for us.
+		# If it does then it sends the data, otherwise tries it in an infinite
+		# loop...
+		while True:
+			try:
+				return self.comms_socket.send(websocket_msg)
+			except socket.error as se:
+				if se.args[0] == 10035: # WSAEWOULDBLOCK
+					time.sleep(0.1)
+					pass
+				else:
+					raise
 
 	def recv(self):
-		data = ""
-		length2b = self.comms_socket.recv(2, socket.MSG_PEEK)
+		messages = []
+		message = self.partial_message + self.comms_socket.recv(4096)
+		if len(message) == len(self.partial_message):
+			self._stop = True
 
-		if len(length2b) == 0:
-			if self.serverorclient:
-				common.internal_print("Client lost. Closing down thread.", -1)
+		if len(message) < 2:
+			return messages
+
+		while True:
+			length2b = message[0:2]
+			length_type = self.WebSocket_proto.get_length_type(length2b)
+			if length_type == -1:
+				common.internal_print("Malformed WebSocket packet", -1, self.verbosity, common.DEBUG)
+				return ""
+
+			masked = self.WebSocket_proto.is_masked(length2b)
+			header_length = self.WebSocket_proto.get_header_length(masked, length_type)
+			
+			if message < header_length:
+				common.internal_print("Malformed WebSocket packet: wrong header length", -1, self.verbosity, common.DEBUG)
+				return ""
+
+			data_length = self.WebSocket_proto.get_data_length(message[:header_length], masked, length_type)
+			length = data_length + header_length
+
+			if len(message) >= length:
+				messages.append(self.transform(self.encryption, self.WebSocket_proto.get_data(message[0:length], header_length, data_length), 0))
+				common.internal_print("WebSocket read: {0} -> {1}".format(length, len(messages[len(messages)-1])), 0, self.verbosity, common.DEBUG)
+				self.partial_message = ""
+				message = message[length:]
 			else:
-				common.internal_print("Server lost. Closing down.", -1)
-			self.stop()
-			self.cleanup()
+				self.partial_message = message
+				break
 
-			return ""
+			if len(message) < 2:
+				self.partial_message = message
+				break
 
-		if len(length2b) != 2:
+		return messages
 
-			return ""
-
-		length_type = self.WebSocket_proto.get_length_type(length2b)
-		if length_type == -1:
-			common.internal_print("Malformed WebSocket packet", -1, self.verbosity, common.DEBUG)
-			return ""
-
-		masked = self.WebSocket_proto.is_masked(length2b)
-		header_length = self.WebSocket_proto.get_header_length(masked, length_type)
-		header = self.comms_socket.recv(header_length, socket.MSG_PEEK)
-		if len(header) != header_length:
-			common.internal_print("Malformed WebSocket packet: wrong header length", -1, self.verbosity, common.DEBUG)
-			return ""
-
-		data_length = self.WebSocket_proto.get_data_length(header, masked, length_type)
-		length = data_length + header_length
-
-		received = 0
-		while received < length:
-			data += self.comms_socket.recv(length-received)
-			received = len(data)
-
-		if length != len(data)	:
-			common.internal_print("Error length mismatch", -1)
-			return ""
-
-		message = self.WebSocket_proto.get_data(data, header_length, data_length)
-		common.internal_print("WebSocket read: {0} -> {1}".format(len(data), len(message)), 0, self.verbosity, common.DEBUG)
-		
-		return self.transform(message,0)
 
 class WebSocket(TCP_generic.TCP_generic):
 
@@ -204,6 +212,7 @@ class WebSocket(TCP_generic.TCP_generic):
 		
 		server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
 		try:
 			server_socket.bind((self.config.get("Global", "serverbind"), int(self.config.get(self.get_module_configname(), "serverport"))))
 			while not self._stop:
@@ -212,7 +221,7 @@ class WebSocket(TCP_generic.TCP_generic):
 				common.internal_print(("Client connected: {0}".format(client_addr)), 0, self.verbosity, common.DEBUG)
 
 				threadsnum = threadsnum + 1
-				thread = WebSocket_thread(threadsnum, 1, self.tunnel, self.packetselector, client_socket, client_addr, self.auth_module, self.verbosity, self.config, self.get_module_name())
+				thread = WebSocket_thread(threadsnum, 1, self.tunnel, self.packetselector, client_socket, client_addr, self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
 				thread.start()
 				self.threads.append(thread)
 
@@ -238,8 +247,8 @@ class WebSocket(TCP_generic.TCP_generic):
 			server_socket.connect((self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 
 			if self.websocket_upgrade(server_socket):
-				client_fake_thread = WebSocket_thread(0, 0, self.tunnel, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
-				client_fake_thread.do_auth()
+				client_fake_thread = WebSocket_thread(0, 0, self.tunnel, None, server_socket, None, self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
+				client_fake_thread.do_hello()
 				client_fake_thread.communication(False)
 
 		except KeyboardInterrupt:
@@ -265,7 +274,7 @@ class WebSocket(TCP_generic.TCP_generic):
 			server_socket.connect((self.config.get(self.get_module_configname(), "proxyip"), int(self.config.get(self.get_module_configname(), "proxyport"))))
 			
 			if self.websocket_upgrade(server_socket):
-				client_fake_thread = WebSocket_thread(0, 0, None, None, server_socket, None, self.auth_module, self.verbosity, self.config, self.get_module_name())
+				client_fake_thread = WebSocket_thread(0, 0, None, None, server_socket, None, self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
 				client_fake_thread.do_check()
 				client_fake_thread.communication(True)
 
