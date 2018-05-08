@@ -157,9 +157,16 @@ class PacketSelector(threading.Thread):
 						for c in self.clients:
 							if c.get_private_ip_addr() == readytogo[16:20]:
 								# client found, writing packet on client's pipe
-								os.write(c.get_pipe_w(), readytogo)
-								# flushing, no buffering please
-								c.get_pipe_w_fd().flush()
+								try:
+									os.write(c.get_pipe_w(), readytogo)
+									# flushing, no buffering please
+									c.get_pipe_w_fd().flush()
+								except:
+									# it can break if there is a race condition
+									# the client was found above but in the
+									# same time the client left and the pipe
+									# got closed. Broken pipe would be raised
+									pass
 
 		return
 
