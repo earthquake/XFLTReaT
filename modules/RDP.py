@@ -38,28 +38,13 @@ import threading
 import TCP_generic
 import client
 import common
+import encryption
+import encryption.enc_none
 
 class RDP_thread(TCP_generic.TCP_generic_thread):
-	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, placeholder, auth_module, verbosity, config, module_name):
-		super(RDP_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, placeholder, auth_module, verbosity, config, module_name)
+	def __init__(self, threadID, serverorclient, tunnel, packetselector, comms_socket, placeholder, authentication, encryption_module, verbosity, config, module_name):
+		super(RDP_thread, self).__init__(threadID, serverorclient, tunnel, packetselector, comms_socket, placeholder, authentication, encryption_module, verbosity, config, module_name)
 		threading.Thread.__init__(self)
-		self._stop = False
-		self.threadID = threadID
-		self.tunnel_r = None
-		self.tunnel_w = tunnel
-		self.packetselector = packetselector
-		self.comms_socket = comms_socket
-		self.client_addr = placeholder
-		self.auth_module = auth_module
-		self.verbosity = verbosity
-		self.serverorclient = serverorclient
-		self.config = config
-		self.module_name = module_name
-		self.check_result = None
-		self.timeout = 3.0
-		self.partial_message = ""
-		self.client = None
-		self.authenticated = False
 
 		global pywintypes, win32api, win32file, win32event, winerror
 		import pywintypes
@@ -70,43 +55,13 @@ class RDP_thread(TCP_generic.TCP_generic_thread):
 
 		return
 
-	def communication_initialization(self):
-		self.client = client.Client()
-		self.client.set_socket(self.comms_socket)
-
-		return
-
-	# check request: generating a challenge and sending it to the server
-	# in case the answer is that is expected, the targer is a valid server
-	def do_check(self):
-		message, self.check_result = self.checks.check_default_generate_challenge()
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, None)
-
-		return
-
-	# basic authentication support. mostly placeholder for a proper 
-	# authentication. Time has not come yet.
-	def do_auth(self):
-		message = self.auth_module.send_details(self.config.get("Global", "clientip"))
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH+message, None)
-
-		return
-
-	# Polite signal towards the server to tell that the client is leaving
-	# Can be spoofed? if there is no encryption. Who cares?
-	def do_logoff(self):
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, None)
-
-		return
-
 	def send(self, channel_type, message, additional_data):
 		if channel_type == common.CONTROL_CHANNEL_BYTE:
-			transformed_message = self.transform(common.CONTROL_CHANNEL_BYTE+message, 1)
+			transformed_message = self.transform(self.encryption, common.CONTROL_CHANNEL_BYTE+message, 1)
 		else:
-			transformed_message = self.transform(common.DATA_CHANNEL_BYTE+message, 1)
+			transformed_message = self.transform(self.encryption, common.DATA_CHANNEL_BYTE+message, 1)
 
 		common.internal_print("RDP sent: {0}".format(len(transformed_message)), 0, self.verbosity, common.DEBUG)
-
 
 		overlapped_write = pywintypes.OVERLAPPED()
 		try:
@@ -125,7 +80,7 @@ class RDP_thread(TCP_generic.TCP_generic_thread):
 		while True:
 			length = struct.unpack(">H", message[0:2])[0]+2
 			if len(message) >= length:
-				messages.append(self.transform(message[2:length], 0))
+				messages.append(self.transform(self.encryption, message[2:length], 0))
 				common.internal_print("RDP read: {0}".format(len(messages[len(messages)-1])), 0, self.verbosity, common.DEBUG)
 				self.partial_message = ""
 				message = message[length:]
@@ -380,7 +335,7 @@ class RDP(TCP_generic.TCP_generic):
 			return
 
 		threadsnum = threadsnum + 1
-		thread = RDP_thread(threadsnum, 1, self.tunnel, self.packetselector, hDVC, ("0.0.0.0", 0), self.auth_module, self.verbosity, self.config, self.get_module_name())
+		thread = RDP_thread(threadsnum, 1, self.tunnel, self.packetselector, hDVC, ("0.0.0.0", 0), self.authentication, self.encryption_module, self.verbosity, self.config, self.get_module_name())
 		thread.start()
 		self.threads.append(thread)
 
