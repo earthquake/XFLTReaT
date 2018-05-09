@@ -322,27 +322,6 @@ class Stateful_thread(threading.Thread):
 
 		return
 
-	'''
-
-	# PLACEHOLDER: check function
-	# What comes here: generate challenge and send to the server
-	def do_check(self):
-
-		return
-
-	# PLACEHOLDER: authentication to the server
-	# What comes here: generate authentication message and send to the server
-	def do_auth(self):
-
-		return
-
-	# PLACEHOLDER: logoff function
-	# What comes here: send message to the server about leaving
-	def do_logoff(self):
-
-		return
-	'''
-
 	# stop thread and exit as soon as possible
 	def stop(self):
 		self._stop = True

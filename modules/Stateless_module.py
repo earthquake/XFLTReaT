@@ -224,11 +224,7 @@ class Stateless_module(Generic_module):
 		client_local.set_public_src_port(client_public_source_port)
 		client_local.set_private_ip_addr(client_private_ip)
 
-
-
-
 		client_local.get_encryption().set_module(self.encryption.get_module())
-		# ?????
 		self.encryption = client_local.get_encryption()
 
 		if self.encryption.get_module().get_step_count():
@@ -240,22 +236,7 @@ class Stateless_module(Generic_module):
 			self.merge_cmh(self.authentication.get_cmh_struct())
 
 		client_local.set_initiated(True)
-
 		self.clients.append(client_local)
-
-		'''
-		self.client = client.Client()
-		self.client.set_socket(self.comms_socket)
-
-		# unifying encryption variable
-
-		self.client.get_encryption().set_module(self.encryption.get_module())
-		self.encryption = self.client.get_encryption()
-
-		if self.encryption.get_module().get_step_count():
-			# add encryption steps
-			self.merge_cmh(self.encryption.get_module().get_cmh_struct())
-		'''
 
 		return
 
@@ -358,26 +339,6 @@ class Stateless_module(Generic_module):
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, (self.server_tuple, None))
 
 		return
-
-	'''
-	# PLACEHOLDER: check function
-	# What comes here: generate challenge and send to the server
-	def do_check(self):
-
-		return
-
-	# PLACEHOLDER: authentication to the server
-	# What comes here: generate authentication message and send to the server
-	def do_auth(self):
-
-		return
-
-	# PLACEHOLDER: logoff function
-	# What comes here: send message to the server about leaving
-	def do_logoff(self):
-
-		return
-	'''
 
 	# PLACEHOLDER: implementation of wrapping and sending message
 	# What comes here: marking message (control or data), transforming (see
