@@ -37,7 +37,7 @@ For more information click [HERE](https://github.com/earthquake/XFLTReaT/wiki/Th
 
 ### A few things to note ###
 * Python 2.7
-* root/Administrator privileges are needed to run
+* root/Administrator privileges are required
 
 ### DISCLAMER ###
 The tool is not yet production grade, edge cases (and not that edge cases) are might not handled very well. There can be security issues in the code that has not been fixed. In case you manage to identify any, please contact me in private or create an issue on the Github page. 
