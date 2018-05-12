@@ -351,7 +351,7 @@ class ICMP(Stateless_module.Stateless_module):
 							readytogo = message[0:packetlen]
 							message = message[packetlen:]
 							if self.serverorclient:
-								c = common.lookup_client_priv(self.clients, readytogo)
+								c = self.lookup_client_priv(readytogo)
 
 								if c:
 									# if the differece between the received and set sequences too big

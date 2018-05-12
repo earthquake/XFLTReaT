@@ -152,7 +152,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 							readytogo = message[0:packetlen]
 							message = message[packetlen:]
 							if self.serverorclient:
-								c = common.lookup_client_priv(self.clients, readytogo)
+								c = self.lookup_client_priv(readytogo)
 								if c:
 									self.send(common.DATA_CHANNEL_BYTE,
 										readytogo, ((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port()), None))

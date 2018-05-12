@@ -151,14 +151,35 @@ class Stateless_module(Generic_module):
 	def modify_additional_data(self, additional_data, serverorclient):
 		return additional_data
 
+	# looking for client, based on the private IP
+	def lookup_client_priv(self, msg):
+		client_private_ip = msg[16:20]
+
+		for c in self.clients:
+			if c.get_private_ip_addr() == client_private_ip:
+				return c
+
+		return None
+
+	# looking for client, based on the public IP
+	def lookup_client_pub(self, addr):
+		client_public_ip = socket.inet_aton(addr[0])
+
+		for c in self.clients:
+			if (c.get_public_ip_addr() == client_public_ip) and (c.get_public_src_port() == addr[1]):
+				return c
+
+		return None
+
+
 	def get_client(self, additional_data):
 		addr = additional_data[0]
-		return common.lookup_client_pub(self.clients, addr)
+		return self.lookup_client_pub(addr)
 
 	def get_client_encryption(self, additional_data):
 		if self.serverorclient:
 			addr = additional_data[0]
-			c = common.lookup_client_pub(self.clients, addr)
+			c = self.lookup_client_pub(addr)
 			if c:
 				return c.get_encryption()
 			else:
@@ -171,8 +192,6 @@ class Stateless_module(Generic_module):
 	def init_client(self, control_message, additional_data):
 		addr = additional_data[0]
 		client_local = client.Client()
-
-		#common.init_client_stateless(control_message, addr, client_local, self.packetselector, self.clients)
 
 		client_private_ip = control_message[0:4]
 		client_public_source_ip = socket.inet_aton(addr[0])
@@ -242,7 +261,7 @@ class Stateless_module(Generic_module):
 
 	def remove_initiated_client(self, control_message, additional_data):
 		addr = additional_data[0] # UDP specific
-		c = common.lookup_client_pub(self.clients, addr)
+		c = self.lookup_client_pub(addr)
 		if c:
 			self.packetselector.delete_client(c)
 			if c.get_authenticated():
@@ -303,7 +322,7 @@ class Stateless_module(Generic_module):
 	# the read only pipe (packets selected for the client)
 	def post_authentication_server(self, control_message, additional_data):
 		addr = additional_data[0] # UDP specific
-		c = common.lookup_client_pub(self.clients, addr)
+		c = self.lookup_client_pub(addr)
 		if c.get_initiated():
 			c.set_authenticated(True)
 			self.packetselector.add_client(c)

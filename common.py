@@ -315,6 +315,7 @@ def is_control_channel(control_character):
 	else:
 		return False
 
+'''
 # DEL?
 # initialization of the stateless client object
 # TODO: shouldn't it to be in the Stateful module?
@@ -355,26 +356,7 @@ def init_client_stateless(msg, addr, client, packetselector, clients):
 # remove client from client list and close down the pipes
 def delete_client_stateless(clients, client):
 	clients.remove(client)
-
-# looking for client, based on the private IP
-def lookup_client_priv(clients, msg):
-	client_private_ip = msg[16:20]
-
-	for c in clients:
-		if c.get_private_ip_addr() == client_private_ip:
-			return c
-
-	return None
-
-# looking for client, based on the public IP
-def lookup_client_pub(clients, addr):
-	client_public_ip = socket.inet_aton(addr[0])
-
-	for c in clients:
-		if (c.get_public_ip_addr() == client_public_ip) and (c.get_public_src_port() == addr[1]):
-			return c
-
-	return None
+'''
 
 # looking for client, based on the userid
 def lookup_client_userid(clients, userid):
