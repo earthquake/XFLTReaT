@@ -83,36 +83,6 @@ class ControlChannel():
 
 		return module.cmh_struct[cm][3]
 
-	'''
-	# auth: authentication request received, authenticate client
-	def cmh_auth(self, module, message, additional_data, cm):
-		if module.auth_module.check_details(message[len(common.CONTROL_AUTH):]):
-			module.setup_authenticated_client(message[len(common.CONTROL_AUTH):], additional_data)
-
-			common.internal_print("Client authenticated", 1)
-
-			return module.cmh_struct[cm][3]
-		else:
-			module.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH_NOTOK, additional_data)
-			common.internal_print("Client authentication failed", -1)
-
-		return module.cmh_struct[cm][4]
-
-	# auth_ok: auth succeded on server, client authenticated
-	def cmh_auth_ok(self, module, message, additional_data, cm):
-		module.auth_ok_setup(additional_data)
-		module.authenticated = True
-		common.internal_print("Authentication succeed for: {0}".format(module.module_name), 1)
-
-		return module.cmh_struct[cm][3]
-
-	# auth_notok: auth failed on server, client exits
-	def cmh_auth_not_ok(self, module, message, additional_data, cm):
-		common.internal_print("Authentication failed for: {0}".format(module.module_name), -1)
-
-		return module.cmh_struct[cm][4]
-
-	'''
 	# logoff: break the loop, cleanup will delete client, exiting thread
 	def cmh_logoff(self, module, message, additional_data, cm):
 		module.remove_initiated_client(message, additional_data)
