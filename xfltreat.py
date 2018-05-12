@@ -276,7 +276,7 @@ class XFLTReaT:
 			# Executing module in check mode
 			if self.checkmode:
 				interface.check_default_route()
-				if m.__init_thread__(0, config, None, None, None, self.verbosity):
+				if m.__init_thread__(0, config, None, None, None, None, self.verbosity):
 					try:
 						m.check()
 					except KeyboardInterrupt:
