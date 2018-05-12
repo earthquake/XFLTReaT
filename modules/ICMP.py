@@ -37,6 +37,7 @@ import subprocess
 
 #local files
 import Stateless_module
+import encryption
 import client
 import common
 from support.icmp_proto import ICMP_Proto
@@ -74,34 +75,80 @@ class ICMP(Stateless_module.Stateless_module):
 
 		return
 
-	def setup_authenticated_client(self, control_message, additional_data):
+	def init_client(self, control_message, additional_data):
 		addr = additional_data[0]
 		identifier = additional_data[1]
 		sequence = additional_data[2]
 
 		client_local = ICMP_Client()
-		common.init_client_stateless(control_message, addr, client_local, 
-			self.packetselector, self.clients)
-		self.clients.append(client_local)
-		self.packetselector.add_client(client_local)
-		if client_local.get_pipe_r() not in self.rlist:
-			self.rlist.append(client_local.get_pipe_r())
 		client_local.set_ICMP_received_identifier(identifier)
 		client_local.set_ICMP_received_sequence(sequence)
 		client_local.set_ICMP_sent_identifier(identifier)
 		client_local.set_ICMP_sent_sequence(sequence)
 
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH_OK, additional_data)
+		client_private_ip = control_message[0:4]
+		client_public_source_ip = socket.inet_aton(addr[0])
+		client_public_source_port = addr[1]
 
-		return
+		# If this private IP is already used, the server removes that client.
+		# For example: client reconnect on connection reset, duplicated configs
+		# and yes, this can be used to kick somebody off the tunnel
 
-	def remove_authenticated_client(self, additional_data):
-		addr = additional_data[0] # ICMP specific
-		c = common.lookup_client_pub(self.clients, addr)
-		if c:
-			self.packetselector.delete_client(c)
-			self.rlist.remove(c.get_pipe_r())
-			common.delete_client_stateless(self.clients, c)
+		# close client related pipes
+		for c in self.clients:
+			if c.get_private_ip_addr() == client_private_ip:
+				save_to_close = c
+				self.clients.remove(c)
+				self.rlist.remove(c.get_pipe_r())
+
+		found = False
+		for c in self.packetselector.get_clients():
+			if c.get_private_ip_addr() == client_private_ip:
+				found = True
+				self.packetselector.delete_client(c)
+
+		# If client was created but not added to the PacketSelector, then the
+		# pipes still need to be closed. This could happen when the authenti-
+		# cation fails or gets interrupted.
+		if not found:
+			if self.os_type == common.OS_WINDOWS:
+				import win32file
+
+				try:
+					win32file.CloseHandle(save_to_close.get_pipe_r())
+					win32file.CloseHandle(save_to_close.get_pipe_w())
+				except:
+					pass
+			else:
+				try:
+					save_to_close.get_pipe_r_fd().close()
+					save_to_close.get_pipe_w_fd().close()
+				except:
+					pass
+
+		# creating new pipes for the client
+		pipe_r, pipe_w = os.pipe()
+		client_local.set_pipes_fdnum(pipe_r, pipe_w)
+		client_local.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
+
+		# set connection related things and authenticated to True
+		client_local.set_public_ip_addr(client_public_source_ip)
+		client_local.set_public_src_port(client_public_source_port)
+		client_local.set_private_ip_addr(client_private_ip)
+
+		client_local.get_encryption().set_module(self.encryption.get_module())
+		self.encryption = client_local.get_encryption()
+
+		if self.encryption.get_module().get_step_count():
+			# add encryption steps
+			self.merge_cmh(self.encryption.get_module().get_cmh_struct())
+
+		if self.authentication.get_step_count():
+			# add authentication steps
+			self.merge_cmh(self.authentication.get_cmh_struct())
+
+		client_local.set_initiated(True)
+		self.clients.append(client_local)
 
 		return
 
@@ -113,6 +160,31 @@ class ICMP(Stateless_module.Stateless_module):
 				return c
 
 		return None
+
+	def post_authentication_server(self, control_message, additional_data):
+		addr = additional_data[0]
+		identifier = additional_data[1]
+		c = self.lookup_client_pub(self.clients, addr, identifier)
+		if c.get_initiated():
+			c.set_authenticated(True)
+			self.packetselector.add_client(c)
+			if c.get_pipe_r() not in self.rlist:
+				self.rlist.append(c.get_pipe_r())
+			return True
+
+		return False
+
+	def remove_initiated_client(self, control_message, additional_data):
+		addr = additional_data[0]
+		identifier = additional_data[1]
+		c = self.lookup_client_pub(self.clients, addr, identifier)
+		if c:
+			self.packetselector.delete_client(c)
+			if c.get_authenticated():
+				self.rlist.remove(c.get_pipe_r())
+			self.clients.remove(c)
+
+		return
 
 	def communication_initialization(self):
 		self.clients = []
@@ -132,20 +204,59 @@ class ICMP(Stateless_module.Stateless_module):
 			self.ICMP_send = self.icmp.ICMP_ECHO_REQUEST
 		return
 
+	def modify_additional_data(self, additional_data, serverorclient):
+		if serverorclient:
+			c = self.lookup_client_pub(self.clients, additional_data[0], additional_data[1])
+			if c:
+				c.set_ICMP_sent_sequence(additional_data[2])
+			return additional_data
+		else:
+			# increment sequence in additional data
+			self.ICMP_sequence += 1
+			return (additional_data[0], additional_data[1], self.ICMP_sequence, additional_data[3])
+
+	def get_client(self, additional_data):
+		addr = additional_data[0]
+		identifier = additional_data[1]
+		return self.lookup_client_pub(self.clients, addr, identifier)
+
+	def get_client_encryption(self, additional_data):
+		if self.serverorclient:
+			addr = additional_data[0]
+			identifier = additional_data[1]
+			c = self.lookup_client_pub(self.clients, addr, identifier)
+			if c:
+				return c.get_encryption()
+			else:
+				e = encryption.Encryption_details()
+				e.set_module(self.encryption_module)
+				return e
+		else:
+			return self.encryption
+
+	# check request: generating a challenge and sending it to the server
+	# in case the answer is that is expected, the targer is a valid server
 	def do_check(self):
 		message, self.check_result = self.checks.check_default_generate_challenge()
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, (self.server_tuple, self.ICMP_identifier, 0, 0)) #??
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, 
+			(self.server_tuple, self.ICMP_identifier, 0, 0))
 
 		return
 
-	def do_auth(self):
-		message = self.auth_module.send_details(self.config.get("Global", "clientip"))
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH+message, (self.server_tuple, self.ICMP_identifier, 0, 0)) #??
+	# start talking to the server
+	# do authentication or encryption first
+	def do_hello(self):
+		# TODO: maybe change this later to push some more info, not only the 
+		# private IP
+		message = socket.inet_aton(self.config.get("Global", "clientip"))
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT+message, 
+			(self.server_tuple, self.ICMP_identifier, self.ICMP_sequence, 0))
 
-		return
-
+	# Polite signal towards the server to tell that the client is leaving
+	# Can be spoofed? if there is no encryption. Who cares?
 	def do_logoff(self):
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, (self.server_tuple, self.ICMP_identifier, 0, 0)) #??
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, 
+			(self.server_tuple, self.ICMP_identifier, self.ICMP_sequence, 0))
 
 		return
 
@@ -167,9 +278,9 @@ class ICMP(Stateless_module.Stateless_module):
 			ql = chr(255)
 
 		if channel_type == common.CONTROL_CHANNEL_BYTE:
-			transformed_message = self.transform(ql+common.CONTROL_CHANNEL_BYTE+message, 1)
+			transformed_message = self.transform(self.get_client_encryption(additional_data), ql+common.CONTROL_CHANNEL_BYTE+message, 1)
 		else:
-			transformed_message = self.transform(ql+common.DATA_CHANNEL_BYTE+message, 1)
+			transformed_message = self.transform(self.get_client_encryption(additional_data), ql+common.DATA_CHANNEL_BYTE+message, 1)
 
 		common.internal_print("ICMP sent: {0} seq: {1} id: {2}".format(len(transformed_message), sequence, identifier), 0, self.verbosity, common.DEBUG)
 
@@ -177,28 +288,29 @@ class ICMP(Stateless_module.Stateless_module):
 			self.icmp.create_packet(self.ICMP_send, identifier, sequence, 
 			self.ICMP_prefix+struct.pack(">H", len(transformed_message))+transformed_message), addr)
 
+
 	def recv(self):
-		# self.transform is missing, TODO
 		message, addr = self.comms_socket.recvfrom(1508)
 
 		identifier = struct.unpack("<H", message[24:26])[0]
-		#sequence = struct.unpack("<H", message[26:28])[0]
 		sequence = struct.unpack(">H", message[26:28])[0]
-		
+
 		if message[28:28+len(self.ICMP_prefix)] != self.ICMP_prefix:
 			return ("", None, None, None, None)
 
 		message = message[28+len(self.ICMP_prefix):]
-		length, queue_length = struct.unpack(">HB", message[0:3])
-		length += 2
 
-		if (length != len(message)):
+		length = struct.unpack(">H", message[0:2])[0]
+		if (length+2 != len(message)):
 			common.internal_print("Error length mismatch {0} {1}".format(length, len(message)), -1)
 			return ("", None, None, None, None)
 
-		common.internal_print("ICMP read: {0} seq: {1} id: {2}".format(len(message)-2, sequence, identifier), 0, self.verbosity, common.DEBUG)
+		#message = self.transform(self.encryption, message[2:length+2], 0)
+		message = self.transform(self.get_client_encryption((addr, identifier, 0, 0)), message[2:length+2], 0)
+		queue_length = struct.unpack(">B", message[0:1])[0]
+		common.internal_print("ICMP read: {0} seq: {1} id: {2}".format(length, sequence, identifier), 0, self.verbosity, common.DEBUG)
 
-		return message[3:], addr, identifier, sequence, queue_length
+		return message[1:], addr, identifier, sequence, queue_length
 
 	def communication_unix(self, is_check):
 		sequence = 0
@@ -213,7 +325,7 @@ class ICMP(Stateless_module.Stateless_module):
 			try:
 				readable, writable, exceptional = select.select(self.rlist, wlist, xlist, self.timeout)
 			except select.error, e:
-				print(e)
+				print "select.error: %r".format(e)
 				break
 			try:
 				if not readable:
@@ -246,8 +358,8 @@ class ICMP(Stateless_module.Stateless_module):
 									# some routers/firewalls just drop older sequences. If it gets 
 									# too big, we just drop the older ones and use the latest X packet
 									# this helps on stabality.
-									if (c.get_ICMP_received_sequence()-c.get_ICMP_sent_sequence()) >= self.TRACKING_THRESHOLD:
-										c.set_ICMP_sent_sequence(c.get_ICMP_received_sequence()-self.TRACKING_ADJUST)
+									if (c.get_ICMP_received_sequence() - c.get_ICMP_sent_sequence()) >= self.TRACKING_THRESHOLD:
+										c.set_ICMP_sent_sequence(c.get_ICMP_received_sequence() - self.TRACKING_ADJUST)
 
 									# get client related values: identifier and sequence number
 									identifier = c.get_ICMP_sent_identifier()
@@ -267,7 +379,6 @@ class ICMP(Stateless_module.Stateless_module):
 											# send all packets from the queue
 											number_to_get = c.queue_length()
 
-										request_num = 0
 										for i in range(0, number_to_get):
 											# get first packet
 											readytogo = c.queue_get()
@@ -391,7 +502,7 @@ class ICMP(Stateless_module.Stateless_module):
 			self.authenticated = False
 
 			self.communication_initialization()
-			self.do_auth()
+			self.do_hello()
 			self.communication(False)
 
 		except KeyboardInterrupt:
