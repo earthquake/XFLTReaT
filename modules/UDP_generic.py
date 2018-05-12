@@ -54,8 +54,26 @@ class UDP_generic(Stateless_module.Stateless_module):
 
 		return
 
-	def communication_initialization(self):
-		self.clients = []
+	# check request: generating a challenge and sending it to the server
+	# in case the answer is that is expected, the targer is a valid server
+	def do_check(self):
+		message, self.check_result = self.checks.check_default_generate_challenge()
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, (self.server_tuple, None))
+
+		return
+
+	# start talking to the server
+	# do authentication or encryption first
+	def do_hello(self):
+		# TODO: maybe change this later to push some more info, not only the 
+		# private IP
+		message = socket.inet_aton(self.config.get("Global", "clientip"))
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT+message, (self.server_tuple, None))
+
+	# Polite signal towards the server to tell that the client is leaving
+	# Can be spoofed? if there is no encryption. Who cares?
+	def do_logoff(self):
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, (self.server_tuple, None))
 
 		return
 
@@ -89,7 +107,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 
 			length = struct.unpack(">H", message[0:2])[0]+2
 			if len(message) == length:
-				messages[addr].append(self.transform(self.encryption, message[2:length], 0))
+				messages[addr].append(self.transform(self.get_client_encryption((addr, 0)), message[2:length], 0))
 				common.internal_print("UDP read: {0}".format(len(messages[addr][len(messages[addr])-1])), 0, self.verbosity, common.DEBUG)
 				message = message[length:]
 			else:

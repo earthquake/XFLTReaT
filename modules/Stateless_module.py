@@ -62,9 +62,6 @@ class Stateless_module(Generic_module):
 			3  : [common.CONTROL_INIT_DONE, 	self.controlchannel.cmh_init_done, 0, True, False],
 			4  : [common.CONTROL_LOGOFF, 		self.controlchannel.cmh_logoff, 1, True, False],
 			5  : [common.CONTROL_DUMMY_PACKET, 	self.controlchannel.cmh_dummy_packet, 1, True, True],
-			#6  : [common.CONTROL_AUTH, 			self.controlchannel.cmh_auth, 1, True, True],
-			#7  : [common.CONTROL_AUTH_OK, 		self.controlchannel.cmh_auth_ok, 0, True, False],
-			#8  : [common.CONTROL_AUTH_NOTOK, 	self.controlchannel.cmh_auth_not_ok, 0, True, False]
 		}
 
 		self.packet_writer = self.packet_writer_default
@@ -151,6 +148,8 @@ class Stateless_module(Generic_module):
 		else:
 			return packet
 
+	def modify_additional_data(self, additional_data, serverorclient):
+		return additional_data
 
 	def get_client(self, additional_data):
 		addr = additional_data[0]
@@ -188,6 +187,7 @@ class Stateless_module(Generic_module):
 			if c.get_private_ip_addr() == client_private_ip:
 				save_to_close = c
 				self.clients.remove(c)
+				self.rlist.remove(c.get_pipe_r())
 
 		found = False
 		for c in self.packetselector.get_clients():
@@ -260,13 +260,14 @@ class Stateless_module(Generic_module):
 			self.merge_cmh(self.encryption.get_module().get_cmh_struct())
 			# get and send encryption initialization message
 			message = self.encryption.get_module().encryption_init_msg()
-			self.send(common.CONTROL_CHANNEL_BYTE, message, additional_data)
+			self.send(common.CONTROL_CHANNEL_BYTE, message, self.modify_additional_data(additional_data, 0))
 
 		return
 
 
 	# PLACEHOLDER for future needs
 	def post_init_server(self, control_message, additional_data):
+
 		return
 
 	# not sure if this is the right way
@@ -280,18 +281,20 @@ class Stateless_module(Generic_module):
 			# get and send encryption initialization message
 
 			message = self.authentication.authentication_init_msg()
-			self.send(common.CONTROL_CHANNEL_BYTE, message, additional_data)
+			self.send(common.CONTROL_CHANNEL_BYTE, message, self.modify_additional_data(additional_data, 0))
 		
 
 		return
 
 	# PLACEHOLDER for future needs
 	def post_encryption_server(self, control_message, additional_data):
+
 		return
 
 
 	def post_authentication_client(self, control_message, additional_data):
 		self.authenticated = True
+
 		return
 
 	# server side
@@ -314,29 +317,24 @@ class Stateless_module(Generic_module):
 	# What comes here: anything that should be set up before the actual
 	# communication
 	def communication_initialization(self):
-
+		self.clients = []
 		return
 
-	# check request: generating a challenge and sending it to the server
-	# in case the answer is that is expected, the targer is a valid server
+	# PLACEHOLDER: check function
+	# What comes here: generate challenge and send to the server
 	def do_check(self):
-		message, self.check_result = self.checks.check_default_generate_challenge()
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, (self.server_tuple, None))
 
 		return
 
-	# start talking to the server
-	# do authentication or encryption first
+	# PLACEHOLDER: authentication to the server
+	# What comes here: generate authentication message and send to the server
 	def do_hello(self):
-		# TODO: maybe change this later to push some more info, not only the 
-		# private IP
-		message = socket.inet_aton(self.config.get("Global", "clientip"))
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT+message, (self.server_tuple, None))
 
-	# Polite signal towards the server to tell that the client is leaving
-	# Can be spoofed? if there is no encryption. Who cares?
+		return
+
+	# PLACEHOLDER: logoff function
+	# What comes here: send message to the server about leaving
 	def do_logoff(self):
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, (self.server_tuple, None))
 
 		return
 
