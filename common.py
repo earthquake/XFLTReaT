@@ -229,9 +229,17 @@ def check_router_settings(config):
 	return True
 
 
-# main config sanity check. If something missing from the Global section, then
-# shouts.
+# main config sanity check. If something missing from the Global section, or 
+# from the filesystem then it shouts.
 def config_sanity_check(config, serverorclient):
+	dirlist = ["modules", "support", "encryption", "authentication", "misc"]
+
+	for d in dirlist:
+		if not os.path.isdir(d):
+			internal_print("The '{0}' directory is missing. Make sure you have it with the necessary files.".format(d), -1)
+
+			return False
+
 	if not config.has_section("Global"):
 		internal_print("config file missing 'Global' section", -1)
 
