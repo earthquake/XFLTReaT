@@ -45,7 +45,9 @@ class Authentication_module(Generic_authentication_module.Generic_authentication
 			1  : ["XFLT>AUTH_OK", 		self.authentication_step_2_ok, 0, True, False],
 			2  : ["XFLT>AUTH_NOTOK", 	self.authentication_step_2_not_ok, 0, True, False, False]
 		}
-		self.step_counter = 2
+
+		self.client_step_count = 1
+		self.server_step_count = 1
 
 		return
 

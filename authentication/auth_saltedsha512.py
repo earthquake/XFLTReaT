@@ -46,7 +46,9 @@ class Authentication_module(Generic_authentication_module.Generic_authentication
 			1  : ["XFLT>AUTH_OK", 		self.authentication_step_2_ok, 0, True, False, False],
 			2  : ["XFLT>AUTH_NOTOK", 	self.authentication_step_2_not_ok, 0, True, False, False]
 		}
-		self.step_counter = 3
+
+		self.client_step_count = 1
+		self.server_step_count = 1
 
 		self.key = None
 		return
@@ -94,16 +96,16 @@ class Authentication_module(Generic_authentication_module.Generic_authentication
 	def authentication_step_1(self, module, message, additional_data, cm):
 		if self.check_details(message[len(self.cmh_struct_authentication[0][0]):]):
 			if module.post_authentication_server(message[len(self.cmh_struct_authentication[0][0]):], additional_data):
-				module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_authentication[1][0], additional_data)
+				module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_authentication[1][0], module.modify_additional_data(additional_data, 1))
 			else:
-				module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_authentication[2][0], additional_data)
+				module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_authentication[2][0], module.modify_additional_data(additional_data, 1))
 				return module.cmh_struct[cm][4+module.is_caller_stateless()]
 
 			common.internal_print("Client authenticated", 1)
 
 			return module.cmh_struct[cm][3]
 		else:
-			module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_authentication[2][0], additional_data)
+			module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_authentication[2][0], module.modify_additional_data(additional_data, 1))
 			common.internal_print("Client authentication failed", -1)
 
 		return module.cmh_struct[cm][4+module.is_caller_stateless()]

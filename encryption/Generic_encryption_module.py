@@ -33,7 +33,8 @@ import common
 __metaclass__ = type
 class Generic_encryption_module():
 	def __init__(self):
-		self.step_counter = 0
+		self.client_step_count = 0
+		self.server_step_count = 0
 		self.cmh_struct_encryption  = {}
 
 		return
@@ -84,6 +85,12 @@ class Generic_encryption_module():
 	# return the number of steps
 	def get_step_count(self):
 		return len(self.cmh_struct_encryption)
+
+	def get_client_step_count(self):
+		return self.client_step_count
+
+	def get_server_step_count(self):
+		return self.server_step_count
 
 	# return first message to start the process
 	# client sends to server, server handles based on cmh struct

@@ -53,7 +53,8 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 			4  : ["XFLT>ECDHd5", 	self.encryption_step_5, 1, True, False, True],
 		}
 
-		self.step_counter = 5
+		self.client_step_count = 2
+		self.server_step_count = 3
 
 		self.server_public_key_file = "misc/public_key.pem"
 		self.server_private_key_file = "misc/private_key.pem"
@@ -93,7 +94,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 	def encryption_step_1(self, module, message, additional_data, cm):
 		common.internal_print("Encryption initialization started: {0}".format(module.module_name))
 		pbk = self.server_public_key.public_numbers().encode_point()[1:]
-		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_encryption[1][0]+pbk, additional_data)
+		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_encryption[1][0]+pbk, module.modify_additional_data(additional_data, 1))
 
 		return module.cmh_struct[cm][3]
 
@@ -138,7 +139,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		module.encryption.set_shared_key(client_private_key.exchange(ec.ECDH(), server_public_key))
 
 		pbk = client_private_key.public_key().public_numbers().encode_point()[1:]
-		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_encryption[2][0]+pbk, additional_data)
+		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_encryption[2][0]+pbk, module.modify_additional_data(additional_data, 0))
 
 		module.encryption.set_encrypted(True)
 
@@ -168,7 +169,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		c.get_encryption().set_encrypted(True)
 
 		pbk = server_ephemeral_public_key.public_numbers().encode_point()[1:]
-		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_encryption[3][0]+pbk, additional_data)
+		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_encryption[3][0]+pbk, module.modify_additional_data(additional_data, 1))
 
 		return module.cmh_struct[cm][3]
 
@@ -191,7 +192,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		module.encryption.set_public_key(client_ephemeral_public_key)
 
 		pbk = client_ephemeral_public_key.public_numbers().encode_point()[1:]
-		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_encryption[4][0]+pbk, additional_data)
+		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_encryption[4][0]+pbk, module.modify_additional_data(additional_data, 0))
 
 		module.encryption.set_shared_key(client_ephemeral_private_key.exchange(ec.ECDH(), server_ephemeral_public_key))
 		module.post_encryption_client(message[len(self.cmh_struct_encryption[3][0]):], additional_data)
