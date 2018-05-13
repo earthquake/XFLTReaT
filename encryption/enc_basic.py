@@ -166,7 +166,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 
 
 		# TODO: make a lookup client wrapper to hide differences
-		c = module.get_client(additional_data)
+		c = module.lookup_client_pub(additional_data)
 		c.get_encryption().set_shared_key(self.server_private_key.exchange(ec.ECDH(), client_public_key))
 
 		server_ephemeral_private_key = ec.generate_private_key(self.curve, default_backend())
@@ -219,7 +219,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 	def encryption_step_5(self, module, message, additional_data, cm):
 		client_ephemeral_public = message[len(self.cmh_struct_encryption[4][0]):]
 
-		c = module.get_client(additional_data)
+		c = module.lookup_client_pub(additional_data)
 
 		try:
 			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+client_ephemeral_public)

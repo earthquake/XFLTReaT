@@ -172,10 +172,6 @@ class Stateless_module(Generic_module):
 
 		return None
 
-
-	def get_client(self, additional_data):
-		return self.lookup_client_pub(additional_data)
-
 	def get_client_encryption(self, additional_data):
 		if self.serverorclient:
 			c = self.lookup_client_pub(additional_data)

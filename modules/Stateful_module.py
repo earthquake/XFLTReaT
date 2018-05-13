@@ -151,7 +151,7 @@ class Stateful_thread(threading.Thread):
 	def modify_additional_data(self, additional_data, serverorclient):
 		return additional_data
 
-	def get_client(self, additional_data):
+	def lookup_client_pub(self, additional_data):
 		return self.client
 
 	def get_client_encryption(self, additional_data):
