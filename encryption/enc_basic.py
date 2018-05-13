@@ -132,7 +132,12 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 			common.internal_print("Exiting...", -1)
 			return module.cmh_struct[cm][4+module.is_caller_stateless()]
 
-		public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+server_public_key_stream)
+		try:
+			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+server_public_key_stream)
+		except:
+			common.internal_print("Erroneous key received from the server. Are you sure you are using the same settings on both sides?", -1)
+			return module.cmh_struct[cm][4+module.is_caller_stateless()]
+
 		server_public_key = public_numbers.public_key(default_backend())
 
 		client_private_key = ec.generate_private_key(self.curve, default_backend())
@@ -151,7 +156,12 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 	# This is to use a new, disposable key for every session
 	def encryption_step_3(self, module, message, additional_data, cm):
 		client_public_key_stream = message[len(self.cmh_struct_encryption[2][0]):]
-		public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+client_public_key_stream)
+		try:
+			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+client_public_key_stream)
+		except:
+			common.internal_print("Erroneous key received from the client. Are you sure you are using the same settings on both sides?", -1)
+			return module.cmh_struct[cm][4+module.is_caller_stateless()]
+
 		client_public_key = public_numbers.public_key(default_backend())
 
 
@@ -182,7 +192,12 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 	def encryption_step_4(self, module, message, additional_data, cm):
 		server_ephemeral_public_key_stream = message[len(self.cmh_struct_encryption[3][0]):]
 
-		public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+server_ephemeral_public_key_stream)
+		try:
+			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+server_ephemeral_public_key_stream)
+		except:
+			common.internal_print("Erroneous key received from the server. Are you sure you are using the same settings on both sides?", -1)
+			return module.cmh_struct[cm][4+module.is_caller_stateless()]
+
 		server_ephemeral_public_key = public_numbers.public_key(default_backend())
 
 		client_ephemeral_private_key = ec.generate_private_key(self.curve, default_backend())
@@ -206,7 +221,12 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 
 		c = module.get_client(additional_data)
 
-		public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+client_ephemeral_public)
+		try:
+			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+client_ephemeral_public)
+		except:
+			common.internal_print("Erroneous key received from the client. Are you sure you are using the same settings on both sides?", -1)
+			return module.cmh_struct[cm][4+module.is_caller_stateless()]
+
 		client_ephemeral_public_key = public_numbers.public_key(default_backend())
 
 		server_ephemeral_private_key = c.get_encryption().get_private_key()
