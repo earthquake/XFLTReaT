@@ -315,58 +315,6 @@ def is_control_channel(control_character):
 	else:
 		return False
 
-'''
-# DEL?
-# initialization of the stateless client object
-# TODO: shouldn't it to be in the Stateful module?
-def init_client_stateless(msg, addr, client, packetselector, clients):
-	## TODO error handling
-	client_private_ip = msg[0:4]
-	client_public_source_ip = socket.inet_aton(addr[0])
-	client_public_source_port = addr[1]
-
-	# If this private IP is already used, the server removes that client.
-	# For example: client reconnect on connection reset, duplicated configs
-	# and yes, this can be used to kick somebody off the tunnel
-
-	# close client related pipes
-	# TODO it should go after the ps remove below.
-	for c in clients:
-		if c.get_private_ip_addr() == client_private_ip:
-			delete_client_stateless(clients, c)
-
-	for c in packetselector.get_clients():
-		if c.get_private_ip_addr() == client_private_ip:
-			packetselector.delete_client(c)
-
-	# creating new pipes for the client
-	pipe_r, pipe_w = os.pipe()
-	client.set_pipes_fdnum(pipe_r, pipe_w)
-	client.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
-
-	# set connection related things and authenticated to True
-	client.set_public_ip_addr(client_public_source_ip)
-	client.set_public_src_port(client_public_source_port)
-	client.set_private_ip_addr(client_private_ip)
-	client.set_authenticated(True)
-
-	return
-
-#DEL?
-# remove client from client list and close down the pipes
-def delete_client_stateless(clients, client):
-	clients.remove(client)
-'''
-
-# looking for client, based on the userid
-def lookup_client_userid(clients, userid):
-
-	for c in clients:
-		if c.get_userid() == userid:
-			return c
-
-	return None
-
 # Shamelessly stolen regular expressions, any of them could be wrong
 def is_hostname(s):
 	return bool(re.match("^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$", s))
