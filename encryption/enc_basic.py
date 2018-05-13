@@ -212,6 +212,8 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		module.encryption.set_shared_key(client_ephemeral_private_key.exchange(ec.ECDH(), server_ephemeral_public_key))
 		module.post_encryption_client(message[len(self.cmh_struct_encryption[3][0]):], additional_data)
 
+		common.internal_print("Encryption key agreed with the server.", 1)
+
 		return module.cmh_struct[cm][3]
 
 	# server side.
@@ -233,6 +235,8 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		c.get_encryption().set_shared_key(server_ephemeral_private_key.exchange(ec.ECDH(), client_ephemeral_public_key))
 
 		module.post_encryption_server(message[len(self.cmh_struct_encryption[4][0]):], additional_data)
+
+		common.internal_print("Encryption key agreed with the client.", 1)
 
 		return module.cmh_struct[cm][3]
 
