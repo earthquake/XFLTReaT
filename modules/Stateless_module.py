@@ -252,7 +252,7 @@ class Stateless_module(Generic_module):
 
 		client_local.set_initiated(True)
 		self.clients.append(client_local)
-
+		
 		return
 
 	def remove_initiated_client(self, control_message, additional_data):
@@ -316,8 +316,7 @@ class Stateless_module(Generic_module):
 	# the authenticated flag to True, add to packetselector and allow access
 	# the read only pipe (packets selected for the client)
 	def post_authentication_server(self, control_message, additional_data):
-		addr = additional_data[0] # UDP specific
-		c = self.lookup_client_pub(addr)
+		c = self.lookup_client_pub(additional_data)
 		if c.get_initiated():
 			c.set_authenticated(True)
 			self.packetselector.add_client(c)
