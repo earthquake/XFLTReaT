@@ -218,21 +218,6 @@ class ICMP(Stateless_module.Stateless_module):
 			self.ICMP_sequence += 1
 			return (additional_data[0], additional_data[1], self.ICMP_sequence, additional_data[3])
 
-	def get_client(self, additional_data):
-		return self.lookup_client_pub(additional_data)
-
-	def get_client_encryption(self, additional_data):
-		if self.serverorclient:
-			c = self.lookup_client_pub(additional_data)
-			if c:
-				return c.get_encryption()
-			else:
-				e = encryption.Encryption_details()
-				e.set_module(self.encryption_module)
-				return e
-		else:
-			return self.encryption
-
 	# check request: generating a challenge and sending it to the server
 	# in case the answer is that is expected, the targer is a valid server
 	def do_check(self):
