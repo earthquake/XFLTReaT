@@ -45,6 +45,7 @@ from interface import Interface
 import client
 import common
 import encoding
+import encryption
 from support.dns_proto import DNS_common
 from support.dns_proto import DNS_Proto
 from support.dns_proto import DNS_Queue
@@ -175,10 +176,11 @@ class DNS(UDP_generic.UDP_generic):
 		return True
 
 	# client_side
-	def auth_ok_setup(self, additional_data):
-		self.userid = additional_data[1]
+	def post_authentication_client(self, control_message, additional_data):
+		self.authenticated = True
 		if self.settings:
 			self.do_changesettings(additional_data)
+
 		return
 
 	# client side
@@ -483,6 +485,16 @@ class DNS(UDP_generic.UDP_generic):
 
 		return
 
+	# looking for client, based on the userid
+	def lookup_client_pub(self, additional_data):
+		userid = additional_data[1]
+
+		for c in self.clients:
+			if c.get_userid() == userid:
+				return c
+
+		return None
+
 	def communication_initialization(self):
 		self.clients = []
 		# add user 0 to non-user comms
@@ -495,53 +507,172 @@ class DNS(UDP_generic.UDP_generic):
 
 		return
 
-	def setup_authenticated_client(self, control_message, additional_data):
-		addr = additional_data[0] # UDP specific
+	def init_client(self, control_message, additional_data):
+		addr = additional_data[0]
+
 		client_local = DNS_Client()
-		common.init_client_stateless(control_message, addr, client_local, self.packetselector, self.clients)
-		self.clients.append(client_local)
-		self.packetselector.add_client(client_local)
-		if client_local.get_pipe_r() not in self.rlist:
-			self.rlist.append(client_local.get_pipe_r())
+		client_private_ip = control_message[0:4]
+		client_public_source_ip = socket.inet_aton(addr[0])
+		client_public_source_port = addr[1]
+
+		# If this private IP is already used, the server removes that client.
+		# For example: client reconnect on connection reset, duplicated configs
+		# and yes, this can be used to kick somebody off the tunnel
+
+		# close client related pipes
+		for c in self.clients:
+			if c.get_private_ip_addr() == client_private_ip:
+				save_to_close = c
+				self.clients.remove(c)
+				if c.get_pipe_r() in self.rlist:
+					self.rlist.remove(c.get_pipe_r())
+
+		found = False
+		for c in self.packetselector.get_clients():
+			if c.get_private_ip_addr() == client_private_ip:
+				found = True
+				self.packetselector.delete_client(c)
+
+		# If client was created but not added to the PacketSelector, then the
+		# pipes still need to be closed. This could happen when the authenti-
+		# cation fails or gets interrupted.
+		if not found:
+			if self.os_type == common.OS_WINDOWS:
+				import win32file
+
+				try:
+					win32file.CloseHandle(save_to_close.get_pipe_r())
+					win32file.CloseHandle(save_to_close.get_pipe_w())
+				except:
+					pass
+			else:
+				try:
+					save_to_close.get_pipe_r_fd().close()
+					save_to_close.get_pipe_w_fd().close()
+				except:
+					pass
+
+		# creating new pipes for the client
+		pipe_r, pipe_w = os.pipe()
+		client_local.set_pipes_fdnum(pipe_r, pipe_w)
+		client_local.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
+
+		# set connection related things and authenticated to True
+		client_local.set_public_ip_addr(client_public_source_ip)
+		client_local.set_public_src_port(client_public_source_port)
+		client_local.set_private_ip_addr(client_private_ip)
+
+		client_local.get_encryption().set_module(self.encryption.get_module())
+		self.encryption = client_local.get_encryption()
+
+		if self.encryption.get_module().get_step_count():
+			# add encryption steps
+			self.merge_cmh(self.encryption.get_module().get_cmh_struct())
+
+		if self.authentication.get_step_count():
+			# add authentication steps
+			self.merge_cmh(self.authentication.get_cmh_struct())
+
+		client_local.set_initiated(True)
 
 		self.next_userid = (self.next_userid % (self.DNS_common.get_userid_length() - 1)) + 1
-		additional_data = (additional_data[0], self.next_userid, client_local)
+		#!!!additional_data = (additional_data[0], self.next_userid, client_local)
 		client_local.set_userid(self.next_userid)
 		client_local.set_recordtype("CNAME")
 		client_local.set_upload_encoding_class(encoding.Base32())
 		client_local.set_download_encoding_class(encoding.Base32())
 
 		# moving query to new client
-		client_local.get_query_queue().put(common.lookup_client_userid(self.clients, 0).get_query_queue().get())
-
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH_OK, additional_data)
+		client_local.get_query_queue().put(self.lookup_client_pub((None, 0)).get_query_queue().get())
+		self.clients.append(client_local)
 
 		return
 
-	def remove_authenticated_client(self, additional_data):
-		addr = additional_data[0] # UDP specific
-		userid = additional_data[1] # UDP specific
+	def modify_additional_data(self, additional_data, serverorclient):
+		if serverorclient:
+			c = self.lookup_client_pub((None, self.next_userid))
+			additional_data = (additional_data[0], self.next_userid, c)
+			return additional_data
+		else:
+			return additional_data
+
+	def post_init_client(self, control_message, additional_data):
+		self.userid = additional_data[1]
+		super(DNS, self).post_init_client(control_message, additional_data)
+
+	def post_authentication_server(self, control_message, additional_data):
+		c = self.lookup_client_pub(additional_data)
+		if c.get_initiated():
+			c.set_authenticated(True)
+			self.packetselector.add_client(c)
+			if c.get_pipe_r() not in self.rlist:
+				self.rlist.append(c.get_pipe_r())
+			return True
+
+		return False
+
+	def remove_initiated_client(self, control_message, additional_data):
+		userid = additional_data[1]
 		if userid:
-			c = common.lookup_client_userid(self.clients, userid)
+			c = self.lookup_client_pub(additional_data)
 			if c:
 				self.packetselector.delete_client(c)
-				self.rlist.remove(c.get_pipe_r())
-				common.delete_client_stateless(self.clients, c)
+				if c.get_authenticated():
+					self.rlist.remove(c.get_pipe_r())
+				self.clients.remove(c)
 
 		return
 
+	def get_client_encryption(self, additional_data):
+		if self.serverorclient:
+			c = self.lookup_client_pub(additional_data)
+			if c and additional_data[1] != 0:
+				return c.get_encryption()
+			else:
+				e = encryption.Encryption_details()
+				e.set_module(self.encryption_module)
+				return e
+		else:
+			return self.encryption
+
+	# not sure if this is the right way
+	def post_encryption_client(self, control_message, additional_data):
+		# ugly delay. Make sure that the key exchange finalized before auth
+		time.sleep(0.2)
+		if not self.authentication.get_step_count():
+			# no encryption
+			self.post_authentication_client()
+		else:
+			# add encryption steps
+			self.merge_cmh(self.authentication.get_cmh_struct())
+			# get and send encryption initialization message
+
+			message = self.authentication.authentication_init_msg()
+			self.send(common.CONTROL_CHANNEL_BYTE, message, self.modify_additional_data(additional_data, 0))
+		
+
+		return
+
+	# check request: generating a challenge and sending it to the server
+	# in case the answer is that is expected, the targer is a valid server
 	def do_check(self):
 		message, self.check_result = self.checks.check_default_generate_challenge()
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, (self.server_tuple, 0, None))
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_CHECK+message, 
+			(self.server_tuple, 0, None))
 
 		return
 
-	def do_auth(self):
-		message = self.auth_module.send_details(self.config.get("Global", "clientip"))
-		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_AUTH+message, (self.server_tuple, 0, None))
+	# start talking to the server
+	# do authentication or encryption first
+	def do_hello(self):
+		# TODO: maybe change this later to push some more info, not only the 
+		# private IP
+		message = socket.inet_aton(self.config.get("Global", "clientip"))
+		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT+message, 
+			 (self.server_tuple, 0, None))
 
-		return
-
+	# Polite signal towards the server to tell that the client is leaving
+	# Can be spoofed? if there is no encryption. Who cares?
 	def do_logoff(self):
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_LOGOFF, (self.server_tuple, self.userid, None))
 
@@ -554,7 +685,6 @@ class DNS(UDP_generic.UDP_generic):
 			rpos = random.randint(0,len(chrset)-1)
 			random_content += chrset[rpos]
 
-		#random_content = 
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_DUMMY_PACKET + random_content, (self.server_tuple, self.userid, None))
 
 		return
@@ -579,6 +709,8 @@ class DNS(UDP_generic.UDP_generic):
 			channel_byte = common.CONTROL_CHANNEL_BYTE
 		else:
 			channel_byte = common.DATA_CHANNEL_BYTE
+
+		message = self.transform(self.get_client_encryption((None, userid)), message, 1)
 
 		if self.serverorclient:
 			# server side
@@ -611,7 +743,7 @@ class DNS(UDP_generic.UDP_generic):
 
 				pre_message = encoding_class.encode(ql+message)
 
-				transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+self.transform(pre_message, 1))
+				transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+pre_message)
 				(temp, transaction_id, orig_question, addr, requery_count) = current_client.get_query_queue().get()
 				packet = self.DNS_proto.build_answer(transaction_id, [record_type, "", transformed_message], orig_question)
 
@@ -621,7 +753,7 @@ class DNS(UDP_generic.UDP_generic):
 				self.comms_socket.sendto(packet, addr)
 
 				return
-				
+
 			#check answer and query queues, send as many answers as many queries-1 we had
 			aq_l = current_client.get_answer_queue().qsize()
 			qq_l = current_client.get_query_queue().qsize()
@@ -649,7 +781,7 @@ class DNS(UDP_generic.UDP_generic):
 						ql = chr(255)
 
 				pre_message = current_client.get_download_encoding_class().encode(ql+message)
-				transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+self.transform(pre_message, 1))
+				transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+pre_message)
 				(temp, transaction_id, orig_question, addr, requery_count) = current_client.get_query_queue().get()
 				packet = self.DNS_proto.build_answer(transaction_id, [current_client.get_recordtype(), "", transformed_message], orig_question)
 				self.comms_socket.sendto(packet, addr)
@@ -748,7 +880,7 @@ class DNS(UDP_generic.UDP_generic):
 				# no zonefile record was found, this must be a tunnel message
 				edata = short_hostname.replace(".", "")
 				userid = self.DNS_common.get_userid_from_character(edata[0:1])
-				current_client = common.lookup_client_userid(self.clients, userid)
+				current_client = self.lookup_client_pub((None, userid))
 
 				if not current_client:
 					# no such client, drop this packet.
@@ -803,7 +935,7 @@ class DNS(UDP_generic.UDP_generic):
 
 				try:
 					# trying to decode with the client related encoding
-					# if it fails, then it could be:
+					# reason for failing could be:
 					# 1. packet corruption by an intermediate DNS server/relay
 					# 2. spoofed packet
 					# 3. the tune message to upgrade the encoding was lost
@@ -835,11 +967,13 @@ class DNS(UDP_generic.UDP_generic):
 						return ("", None, 0, 0)
 				else:
 					return ("", None, 0, 0)
+
+				message = message[0:2]+self.transform(self.get_client_encryption((None, userid)), message[2:], 0)
 		else:
 			answer_data = self.DNS_proto.reverse_RR_type(self.recordtype)[3](answer_data)
 			userid = self.DNS_common.get_userid_from_character(answer_data[0:1])
 			message = answer_data[1:]
-			
+
 			if not len(message):
 				return ("", None, 0, 0)
 
@@ -848,7 +982,7 @@ class DNS(UDP_generic.UDP_generic):
 			packet_number = self.DNS_common.get_packet_number_from_header(header)
 			fragment_number = self.DNS_common.get_fragment_number_from_header(header)
 
-			message = message[0:2]+message[3:]
+			message = message[0:2]+self.transform(self.get_client_encryption((None, userid)), message[3:], 0)
 			common.internal_print("DNS fragment read2: {0} packet number: {1} / fragment: {2}".format(len(message), packet_number, fragment_number), 0, self.verbosity, common.DEBUG)
 
 		queue_length = ord(message[0:1])
@@ -904,7 +1038,7 @@ class DNS(UDP_generic.UDP_generic):
 							readytogo = message[0:packetlen]
 							message = message[packetlen:]
 							if self.serverorclient:
-								c = common.lookup_client_priv(self.clients, readytogo)
+								c = self.lookup_client_priv(readytogo)
 								if c:
 									self.send(common.DATA_CHANNEL_BYTE, readytogo, (None, c.get_userid(), c))
 								else:
@@ -924,7 +1058,7 @@ class DNS(UDP_generic.UDP_generic):
 						c = None
 						if self.serverorclient:
 							self.authenticated = False
-							c = common.lookup_client_userid(self.clients, userid)
+							c = self.lookup_client_pub((None, userid))
 						else:
 							if queue_length:
 								common.internal_print("sending {0} dummy packets".format(queue_length), 0, self.verbosity, common.DEBUG)
@@ -1053,7 +1187,7 @@ class DNS(UDP_generic.UDP_generic):
 			self.qMTU = self.DNS_proto.reverse_RR_type("A")[4](254, self.hostname, 3, self.upload_encoding_class)
 
 			if self.do_autotune(server_socket):
-				self.do_auth()
+				self.do_hello()
 				self.communication(False)
 
 		except KeyboardInterrupt:
