@@ -72,7 +72,7 @@ class ControlChannel():
 	def cmh_init(self, module, message, additional_data, cm):
 		common.internal_print("Client initialization started: {0}".format(module.module_name))
 		module.init_client(message[len(common.CONTROL_INIT):], additional_data)
-		module.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT_DONE, additional_data)
+		module.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT_DONE, module.modify_additional_data(additional_data, 1))
 
 		module.post_init_server(message, additional_data)
 
