@@ -162,7 +162,8 @@ class Stateless_module(Generic_module):
 		return None
 
 	# looking for client, based on the public IP
-	def lookup_client_pub(self, addr):
+	def lookup_client_pub(self, additional_data):
+		addr = additional_data[0]
 		client_public_ip = socket.inet_aton(addr[0])
 
 		for c in self.clients:
@@ -173,13 +174,11 @@ class Stateless_module(Generic_module):
 
 
 	def get_client(self, additional_data):
-		addr = additional_data[0]
-		return self.lookup_client_pub(addr)
+		return self.lookup_client_pub(additional_data)
 
 	def get_client_encryption(self, additional_data):
 		if self.serverorclient:
-			addr = additional_data[0]
-			c = self.lookup_client_pub(addr)
+			c = self.lookup_client_pub(additional_data)
 			if c:
 				return c.get_encryption()
 			else:
@@ -206,7 +205,8 @@ class Stateless_module(Generic_module):
 			if c.get_private_ip_addr() == client_private_ip:
 				save_to_close = c
 				self.clients.remove(c)
-				self.rlist.remove(c.get_pipe_r())
+				if c.get_pipe_r() in self.rlist:
+					self.rlist.remove(c.get_pipe_r())
 
 		found = False
 		for c in self.packetselector.get_clients():
@@ -260,8 +260,7 @@ class Stateless_module(Generic_module):
 		return
 
 	def remove_initiated_client(self, control_message, additional_data):
-		addr = additional_data[0] # UDP specific
-		c = self.lookup_client_pub(addr)
+		c = self.lookup_client_pub(additional_data)
 		if c:
 			self.packetselector.delete_client(c)
 			if c.get_authenticated():

@@ -99,7 +99,8 @@ class ICMP(Stateless_module.Stateless_module):
 			if c.get_private_ip_addr() == client_private_ip:
 				save_to_close = c
 				self.clients.remove(c)
-				self.rlist.remove(c.get_pipe_r())
+				if c.get_pipe_r() in self.rlist:
+					self.rlist.remove(c.get_pipe_r())
 
 		found = False
 		for c in self.packetselector.get_clients():
@@ -152,10 +153,12 @@ class ICMP(Stateless_module.Stateless_module):
 
 		return
 
-	def lookup_client_pub(self, clients, addr, identifier):
+	def lookup_client_pub(self, additional_data):
+		addr = additional_data[0]
+		identifier = additional_data[1]
 		client_public_ip = socket.inet_aton(addr[0])
 
-		for c in clients:
+		for c in self.clients:
 			if (c.get_public_ip_addr() == client_public_ip) and (c.get_ICMP_received_identifier() == identifier):
 				return c
 
@@ -164,7 +167,7 @@ class ICMP(Stateless_module.Stateless_module):
 	def post_authentication_server(self, control_message, additional_data):
 		addr = additional_data[0]
 		identifier = additional_data[1]
-		c = self.lookup_client_pub(self.clients, addr, identifier)
+		c = self.lookup_client_pub((addr, identifier))
 		if c.get_initiated():
 			c.set_authenticated(True)
 			self.packetselector.add_client(c)
@@ -177,7 +180,7 @@ class ICMP(Stateless_module.Stateless_module):
 	def remove_initiated_client(self, control_message, additional_data):
 		addr = additional_data[0]
 		identifier = additional_data[1]
-		c = self.lookup_client_pub(self.clients, addr, identifier)
+		c = self.lookup_client_pub((addr, identifier))
 		if c:
 			self.packetselector.delete_client(c)
 			if c.get_authenticated():
@@ -206,7 +209,7 @@ class ICMP(Stateless_module.Stateless_module):
 
 	def modify_additional_data(self, additional_data, serverorclient):
 		if serverorclient:
-			c = self.lookup_client_pub(self.clients, additional_data[0], additional_data[1])
+			c = self.lookup_client_pub(additional_data)
 			if c:
 				c.set_ICMP_sent_sequence(additional_data[2])
 			return additional_data
@@ -216,15 +219,11 @@ class ICMP(Stateless_module.Stateless_module):
 			return (additional_data[0], additional_data[1], self.ICMP_sequence, additional_data[3])
 
 	def get_client(self, additional_data):
-		addr = additional_data[0]
-		identifier = additional_data[1]
-		return self.lookup_client_pub(self.clients, addr, identifier)
+		return self.lookup_client_pub(additional_data)
 
 	def get_client_encryption(self, additional_data):
 		if self.serverorclient:
-			addr = additional_data[0]
-			identifier = additional_data[1]
-			c = self.lookup_client_pub(self.clients, addr, identifier)
+			c = self.lookup_client_pub(additional_data)
 			if c:
 				return c.get_encryption()
 			else:
@@ -420,7 +419,7 @@ class ICMP(Stateless_module.Stateless_module):
 						c = None
 						if self.serverorclient:
 							self.authenticated = False
-							c = self.lookup_client_pub(self.clients, addr, identifier)
+							c = self.lookup_client_pub((addr, identifier))
 							if c:
 								c.set_ICMP_received_identifier(identifier)
 								# packets does not arrive in order sometime
