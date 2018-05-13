@@ -304,7 +304,6 @@ class ICMP(Stateless_module.Stateless_module):
 			common.internal_print("Error length mismatch {0} {1}".format(length, len(message)), -1)
 			return ("", None, None, None, None)
 
-		#message = self.transform(self.encryption, message[2:length+2], 0)
 		message = self.transform(self.get_client_encryption((addr, identifier, 0, 0)), message[2:length+2], 0)
 		queue_length = struct.unpack(">B", message[0:1])[0]
 		common.internal_print("ICMP read: {0} seq: {1} id: {2}".format(length, sequence, identifier), 0, self.verbosity, common.DEBUG)
