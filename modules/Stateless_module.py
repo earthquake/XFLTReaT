@@ -64,21 +64,27 @@ class Stateless_module(Generic_module):
 			5  : [common.CONTROL_DUMMY_PACKET, 	self.controlchannel.cmh_dummy_packet, 1, True, True],
 		}
 
+		# reading/writing packets can be different based on the OS
 		self.packet_writer = self.packet_writer_default
 		self.packet_reader = self.packet_reader_default
+		# different communication function for Unix and Windows
 		self.communication = self.communication_unix
 
+		# setting up for Windows
 		if self.os_type == common.OS_WINDOWS:
 			self.packet_writer = self.packet_writer_win
 			self.communication = self.communication_win
 			self.packet_reader = None
 
+		# setting up for MacOS(X)
 		if self.os_type == common.OS_MACOSX:
 			self.packet_writer = self.packet_writer_mac
 			self.packet_reader = self.packet_reader_mac
 
 		return
 
+	# hacky solution to decide from non-transport modules whether this module
+	# is stateless or stateful
 	def is_caller_stateless(self):
 		return 1
 
@@ -92,7 +98,7 @@ class Stateless_module(Generic_module):
 
 		return found
 
-	# merging control message handlers into the Stateless' original's
+	# merging control message handlers into the Stateless' cmh list
 	def merge_cmh(self, _list):
 		if self.is_in_cmh_already(_list):
 			return
@@ -132,6 +138,7 @@ class Stateless_module(Generic_module):
 		return packet
 
 	# for Linux and other unices
+	# Windows is handled from the communication() unfortunately
 	def packet_reader_default(self, tunnel, first_read, serverorclient):
 		packet = os.read(tunnel, 4096)
 		return packet
@@ -148,6 +155,8 @@ class Stateless_module(Generic_module):
 		else:
 			return packet
 
+	# if non-transport modules (encryption, authentication) need to modify
+	# some data between recv() and send(), this function should be used
 	def modify_additional_data(self, additional_data, serverorclient):
 		return additional_data
 
@@ -161,7 +170,7 @@ class Stateless_module(Generic_module):
 
 		return None
 
-	# looking for client, based on the public IP
+	# find client object based on public details (IP, identifier, etc.)
 	def lookup_client_pub(self, additional_data):
 		addr = additional_data[0]
 		client_public_ip = socket.inet_aton(addr[0])
@@ -172,23 +181,32 @@ class Stateless_module(Generic_module):
 
 		return None
 
+	# find the encryption details of the client
 	def get_client_encryption(self, additional_data):
 		if self.serverorclient:
+			# server mode
+			# select client, based on public details
 			c = self.lookup_client_pub(additional_data)
 			if c:
+				# if found, return object's encryption details
 				return c.get_encryption()
 			else:
+				# this must be a new client, creating new encryption object
 				e = encryption.Encryption_details()
 				e.set_module(self.encryption_module)
 				return e
 		else:
+			# client mode
 			return self.encryption
 
+	# set up the Client object for a new client
 	def init_client(self, control_message, additional_data):
 		addr = additional_data[0]
 		client_local = client.Client()
 
+		# stripping out the private IP from the message
 		client_private_ip = control_message[0:4]
+		# saving public IP address and port
 		client_public_source_ip = socket.inet_aton(addr[0])
 		client_public_source_port = addr[1]
 
@@ -198,6 +216,7 @@ class Stateless_module(Generic_module):
 
 		# close client related pipes
 		for c in self.clients:
+			# find and remove client from module's list
 			if c.get_private_ip_addr() == client_private_ip:
 				save_to_close = c
 				self.clients.remove(c)
@@ -206,6 +225,7 @@ class Stateless_module(Generic_module):
 
 		found = False
 		for c in self.packetselector.get_clients():
+			# find and remove client from packetselector's list
 			if c.get_private_ip_addr() == client_private_ip:
 				found = True
 				self.packetselector.delete_client(c)
@@ -252,12 +272,14 @@ class Stateless_module(Generic_module):
 
 		client_local.set_initiated(True)
 		self.clients.append(client_local)
-		
+
 		return
 
+	# removing client from lists
 	def remove_initiated_client(self, control_message, additional_data):
 		c = self.lookup_client_pub(additional_data)
 		if c:
+			# from packetselector, clients list and rlist
 			self.packetselector.delete_client(c)
 			if c.get_authenticated():
 				self.rlist.remove(c.get_pipe_r())
@@ -265,6 +287,8 @@ class Stateless_module(Generic_module):
 
 		return
 
+	# client side
+	# after the init was done, this function is called 
 	def post_init_client(self, control_message, additional_data):
 		if not self.encryption.get_module().get_step_count():
 			# no encryption
@@ -279,12 +303,15 @@ class Stateless_module(Generic_module):
 		return
 
 
+	# server side
+	# after the init was done, this function is called 
 	# PLACEHOLDER for future needs
 	def post_init_server(self, control_message, additional_data):
 
 		return
 
-	# not sure if this is the right way
+	# client side
+	# after the encryption part was done, this function is called
 	def post_encryption_client(self, control_message, additional_data):
 		if not self.authentication.get_step_count():
 			# no encryption
@@ -300,12 +327,15 @@ class Stateless_module(Generic_module):
 
 		return
 
+	# server side
+	# after the encryption part was done, this function is called
 	# PLACEHOLDER for future needs
 	def post_encryption_server(self, control_message, additional_data):
 
 		return
 
-
+	# client side
+	# after the authentication part was done, this function is called
 	def post_authentication_client(self, control_message, additional_data):
 		self.authenticated = True
 
@@ -354,7 +384,6 @@ class Stateless_module(Generic_module):
 	# PLACEHOLDER: implementation of wrapping and sending message
 	# What comes here: marking message (control or data), transforming (see
 	# transform()), prepending with length, sending on the appropriate channel
-
 	def send(self, channel_type, message, additional_data):
 
 		return
@@ -363,6 +392,13 @@ class Stateless_module(Generic_module):
 	# What comes here: reading the first two bytes to determine length, reading
 	# the full packet, transforming it to the original format (see transform())
 	def recv(self):
+
+		return
+
+	# PLACEHOLDER: cleanup
+	# What comes here: close() all sockets, do everything that should be done
+	# to prepare for the exit process
+	def cleanup(self):
 
 		return
 
@@ -376,37 +412,5 @@ class Stateless_module(Generic_module):
 
 	# for windows
 	def communication_win(self, is_check):
-
-		return
-
-	# PLACEHOLDER: sanity check against the configuration
-	# if some of the values in the config are missing or invalid
-	# then it should return False
-	def sanity_check(self):
-		
-		return True
-
-	# PLACEHOLDER: server part of the module
-	# What comes here: setup, bind, listen, accept, fork/thread, cleanup
-	def serve(self):
-
-		return
-
-	# PLACEHOLDER: client part of the module
-	# What comes here: setup, connect, cleanup
-	def connect(self):
-
-		return
-
-	# PLACEHOLDER: check part of the module	
-	# What comes here: setup, connect, check, cleanup
-	def check(self):
-
-		return
-
-	# PLACEHOLDER: cleanup
-	# What comes here: close() all sockets, do everything that should be done
-	# to prepare for the exit process
-	def cleanup(self):
 
 		return

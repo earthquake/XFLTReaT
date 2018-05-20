@@ -42,6 +42,9 @@ class Generic_module(threading.Thread):
 	This saves us some bytes and fulfills the joy of oop. Wut?
 	"""
 
+	# Initializes the thread. This is used instead of the __init__() (see
+	# comment there). Everything that is used globally in the class, should be
+	# initialized here.
 	def __init_thread__(self, threadID, config, tunnel, packetselector, authentication, encryption_module, verbosity):
 		threading.Thread.__init__(self)
 		self.threadID = threadID
@@ -66,6 +69,11 @@ class Generic_module(threading.Thread):
 
 		return True
 
+	# whenever the initialization of the class happens it is not certain that
+	# the class will be used. For example when it is disabled, then we what to
+	# get the details of the module to be able to make the decision, but do not
+	# want to run it. Only those things should be set and called here that are
+	# necessary for these decision.
 	def __init__(self):
 		self._stop = False
 		self.os_type = common.get_os_type()
@@ -84,40 +92,62 @@ class Generic_module(threading.Thread):
 
 		return
 
+	# PLACEHOLDER: sanity check against the configuration
+	# if some of the values in the config are missing or invalid
+	# then it should return False
+	def sanity_check(self):
+		
+		return True
+
+	# basic OS check to decide if the running OS is supported
 	def os_check(self):
 		if (self.module_os_support & self.os_type):
 			return True
 		else:
 			return False
 
+	# PLACEHOLDER: server part of the module
+	# What comes here: setup, bind, listen, accept, fork/thread, cleanup
 	def serve(self):
 
 		return
 
+	# PLACEHOLDER: client part of the module
+	# What comes here: setup, connect, communication, cleanup
 	def connect(self):
 
 		return
 
+	# PLACEHOLDER: check part of the module	
+	# What comes here: setup, connect, check, cleanup
 	def check(self):
 
 		return
 
+	# PLACEHOLDER: cleanup
+	# What comes here: close() all sockets, do everything that should be done
+	# to prepare for the exit process
 	def cleanup(self):
 
 		return
 
+	# returns the name of the module
 	def get_module_name(self):
 
 		return self.module_name
 
+	# returns the configuration name of the module
 	def get_module_configname(self):
 
 		return self.module_configname
 
+	# returns the description of the module
 	def get_module_description(self):
 
 		return self.module_description
 
+	# returns the intermediate hop if the module requires one
+	# e.g. SOCKS/HTTP proxy, WebSocket proxy etc...
 	def get_intermediate_hop(self, config):
 
 		return ""
