@@ -197,7 +197,7 @@ class Stateful_thread(threading.Thread):
 			import winerror
 
 			overlapped = pywintypes.OVERLAPPED()
-			# setting up writable named pipe
+			# setting up nameslot
 			mailslotname = "\\\\.\\mailslot\\XFLTReaT_{0}".format(socket.inet_ntoa(client_private_ip))
 
 			mailslot_r = win32file.CreateMailslot(mailslotname, 0, -1, None)
