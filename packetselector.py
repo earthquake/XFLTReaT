@@ -218,6 +218,10 @@ class PacketSelector(threading.Thread):
 					common.internal_print("Interface disappered, exiting PS thread: {0}".format(e), -1)
 					self.stop()
 					continue
+				if e.args[0] == 1453:
+					common.internal_print("OS Internal error: {0}".format(e), -1)
+					self.stop()
+					continue
 
 				common.internal_print("PS Exception: {0}".format(e), -1)
 
