@@ -47,7 +47,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 	This module lacks of any encryption or encoding, which comes to the interface
 	goes to the socket back and forth. Nothing special.
 	"""
-	module_os_support = common.OS_LINUX | common.OS_MACOSX
+	module_os_support = common.OS_LINUX | common.OS_MACOSX | common.OS_WINDOWS
 
 	def __init__(self):
 		super(UDP_generic, self).__init__()
@@ -87,11 +87,29 @@ class UDP_generic(Stateless_module.Stateless_module):
 
 		common.internal_print("UDP sent: {0}".format(len(transformed_message)), 0, self.verbosity, common.DEBUG)
 
-		return self.comms_socket.sendto(struct.pack(">H", len(transformed_message))+transformed_message, addr)
+		# WORKAROUND?!
+		# Windows: It looks like when the buffer fills up the OS does not do
+		# congestion control, instead throws and exception/returns with
+		# WSAEWOULDBLOCK which means that we need to try it again later.
+		# So we sleep 100ms and hope that the buffer has more space for us.
+		# If it does then it sends the data, otherwise tries it in an infinite
+		# loop...
+		while True:
+			try:
+				return self.comms_socket.sendto(struct.pack(">H", len(transformed_message))+transformed_message, addr)
+			except socket.error as se:
+				if se.args[0] == 10035: # WSAEWOULDBLOCK
+					time.sleep(0.1)
+					pass
+				else:
+					raise
 
 	def recv(self):
 		messages = {}
-		message, addr = self.comms_socket.recvfrom(4096)
+		try:
+			message, addr = self.comms_socket.recvfrom(4096)
+		except socket.error as se:
+			raise
 
 		if len(message) == 0:
 			if self.serverorclient:
@@ -99,7 +117,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 			else:
 				common.internal_print("WTF? Server lost. Closing down.", -1)
 
-			return ("", None)
+			return messages
 
 		while True:
 			if addr not in messages:
@@ -121,6 +139,122 @@ class UDP_generic(Stateless_module.Stateless_module):
 				return messages
 
 		return messages
+
+	def communication_win(self, is_check):
+		import win32event
+		import win32file
+		import win32api
+		import pywintypes
+		import winerror
+
+		# event for the socket
+		hEvent_sock = win32event.CreateEvent(None, 0, 0, None)
+		win32file.WSAEventSelect(self.comms_socket, hEvent_sock, win32file.FD_READ)
+
+		# descriptor list
+		self.rlist = [self.comms_socket]
+		# overlapped list
+		self.olist = [0]
+		# event list
+		self.elist = [hEvent_sock]
+		# message buffer list
+		self.mlist = [0]
+		# id of the read object - put in this if it was read
+		self.ulist = []
+		if not self.serverorclient and self.tunnel:
+				# client mode
+				# objects created for the tunnel and put in the corresponding
+				# lists
+				hEvent_pipe = win32event.CreateEvent(None, 0, 0, None) # for reading from the pipe
+				overlapped_pipe = pywintypes.OVERLAPPED()
+				overlapped_pipe.hEvent = hEvent_pipe
+				message_buffer = win32file.AllocateReadBuffer(4096)
+				self.rlist.append(self.tunnel)
+				self.olist.append(overlapped_pipe)
+				self.elist.append(hEvent_pipe)
+				self.mlist.append(message_buffer)
+				self.ulist.append(1)
+
+		while not self._stop:
+			try:
+				if not self.tunnel:
+					# check or server mode without client only with socket
+					rc = win32event.WaitForSingleObject(hEvent_sock, int(self.timeout*1000))
+				else:
+					if self.ulist:
+						# there is somebody waiting to be read
+						for idx in self.ulist:
+							# issueing ReadFile on all not yet read mailslots/tunnel
+							hr, _ = win32file.ReadFile(self.rlist[idx], self.mlist[idx], self.olist[idx])
+							if (hr != 0) and (hr != winerror.ERROR_IO_PENDING):
+								common.internal_print("UDP ReadFile failed: {0}".format(hr), -1)
+								raise
+
+						self.ulist = []
+
+					# waiting to get some data somewhere
+					rc = win32event.WaitForMultipleObjects(self.elist, 0, int(self.timeout*1000))
+					if rc == winerror.WAIT_TIMEOUT:
+						# timed out, just rerun and wait
+						continue
+
+				if rc < 0x80: # STATUS_ABANDONED_WAIT_0
+					if rc > 0:
+						# the tunnel or one of the mailslots got signalled
+						self.ulist.append(rc)
+						if (self.olist[rc].InternalHigh < 4) or (self.mlist[rc][0:1] != "\x45"): #Only care about IPv4
+							continue
+
+						readytogo = self.mlist[rc][0:self.olist[rc].InternalHigh]
+						if self.serverorclient:
+							c = self.lookup_client_priv(readytogo)
+							if c:
+								self.send(common.DATA_CHANNEL_BYTE,
+									readytogo, ((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port()), None))
+							else:
+								common.internal_print("Client not found, strange?!", 0, self.verbosity, common.DEBUG)
+								continue
+						else:
+							if self.authenticated:
+								self.send(common.DATA_CHANNEL_BYTE, readytogo, (self.server_tuple, None))
+					if rc == 0:
+						# socket got signalled
+						messages = self.recv()
+						if len(messages) == 0:
+							continue
+
+						for addr in messages:
+							for message in messages[addr]:
+								c = None
+								if self.serverorclient:
+									self.authenticated = False
+									c = self.lookup_client_pub((addr, 0))
+
+								if common.is_control_channel(message[0:1]):
+									if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], (addr, None)):
+										continue
+									else:
+										self.stop()
+										break
+
+								if c:
+									self.authenticated = c.get_authenticated()
+
+								if self.authenticated:
+									try:
+										self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
+									except OSError as e:
+										print(e)
+
+			except win32api.error as e:
+				common.internal_print("UDP Exception: {0}".format(e), -1)
+			except socket.error as se:
+				if se.args[0] == 10054: # port is unreachable
+					common.internal_print("Server's port is unreachable: {0}".format(se), -1)
+					self._stop = True
+
+		return True
+
 
 	def communication_unix(self, is_check):
 		self.rlist = [self.comms_socket]

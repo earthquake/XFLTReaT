@@ -221,6 +221,21 @@ class Stateless_module(Generic_module):
 				save_to_close = c
 				self.clients.remove(c)
 				if c.get_pipe_r() in self.rlist:
+					if self.os_type == common.OS_WINDOWS:
+						# removing client related elements from lists
+						idx = 0
+						while self.rlist[idx] != c.get_pipe_r():
+							idx += 1
+						if idx < len(self.rlist):
+							self.olist = self.olist[:idx] + self.olist[idx+1:]
+							self.elist = self.elist[:idx] + self.elist[idx+1:]
+							self.mlist = self.mlist[:idx] + self.mlist[idx+1:]
+						else:
+							self.olist = self.olist[:idx]
+							self.elist = self.elist[:idx]
+							self.mlist = self.mlist[:idx]
+
+						self.ulist.remove(idx)
 					self.rlist.remove(c.get_pipe_r())
 
 		found = False
@@ -249,10 +264,39 @@ class Stateless_module(Generic_module):
 				except:
 					pass
 
+
 		# creating new pipes for the client
-		pipe_r, pipe_w = os.pipe()
-		client_local.set_pipes_fdnum(pipe_r, pipe_w)
-		client_local.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
+		if self.os_type == common.OS_WINDOWS:
+			import win32pipe
+			import win32file
+			import pywintypes
+			import win32event
+
+			import win32api
+			import winerror
+
+			overlapped = pywintypes.OVERLAPPED()
+			# setting up nameslot
+			mailslotname = "\\\\.\\mailslot\\XFLTReaT_{0}".format(socket.inet_ntoa(client_private_ip))
+
+			mailslot_r = win32file.CreateMailslot(mailslotname, 0, -1, None)
+			if (mailslot_r == None) or (mailslot_r == win32file.INVALID_HANDLE_VALUE):
+				internal_print("Invalid handle - mailslot", -1)
+				sys.exit(-1)
+
+			mailslot_w = win32file.CreateFile(mailslotname, win32file.GENERIC_WRITE,
+				win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE, None, win32file.OPEN_EXISTING,
+				win32file.FILE_ATTRIBUTE_NORMAL | win32file.FILE_FLAG_OVERLAPPED, None)
+			if (mailslot_w == None) or (mailslot_w == win32file.INVALID_HANDLE_VALUE):
+				internal_print("Invalid handle - readable pipe", -1)
+				sys.exit(-1)
+
+			client_local.set_pipes_fdnum(mailslot_r, mailslot_w)
+
+		else:
+			pipe_r, pipe_w = os.pipe()
+			client_local.set_pipes_fdnum(pipe_r, pipe_w)
+			client_local.set_pipes_fd(os.fdopen(pipe_r, "r"), os.fdopen(pipe_w, "w"))
 
 		# set connection related things and authenticated to True
 		client_local.set_public_ip_addr(client_public_source_ip)
@@ -282,6 +326,21 @@ class Stateless_module(Generic_module):
 			# from packetselector, clients list and rlist
 			self.packetselector.delete_client(c)
 			if c.get_authenticated():
+				if self.os_type == common.OS_WINDOWS:
+					# removing client related elements from lists
+					idx = 0
+					while self.rlist[idx] != c.get_pipe_r():
+						idx += 1
+					if idx < len(self.rlist):
+						self.olist = self.olist[:idx] + self.olist[idx+1:]
+						self.elist = self.elist[:idx] + self.elist[idx+1:]
+						self.mlist = self.mlist[:idx] + self.mlist[idx+1:]
+					else:
+						self.olist = self.olist[:idx]
+						self.elist = self.elist[:idx]
+						self.mlist = self.mlist[:idx]
+					if idx in self.ulist:
+						self.ulist.remove(idx)
 				self.rlist.remove(c.get_pipe_r())
 			self.clients.remove(c)
 
@@ -352,6 +411,20 @@ class Stateless_module(Generic_module):
 			self.packetselector.add_client(c)
 			if c.get_pipe_r() not in self.rlist:
 				self.rlist.append(c.get_pipe_r())
+				if self.os_type == common.OS_WINDOWS:
+					# creating objects and adding to corresponding lists
+					import win32event
+					import win32file
+					import pywintypes
+
+					hEvent_pipe = win32event.CreateEvent(None, 0, 0, None) # for reading from the pipe
+					overlapped_pipe = pywintypes.OVERLAPPED()
+					overlapped_pipe.hEvent = hEvent_pipe
+					message_buffer = win32file.AllocateReadBuffer(4096)
+					self.olist.append(overlapped_pipe)
+					self.elist.append(hEvent_pipe)
+					self.mlist.append(message_buffer)
+					self.ulist.append(len(self.elist)-1)
 			return True
 
 		return False
