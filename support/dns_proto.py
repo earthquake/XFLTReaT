@@ -289,11 +289,16 @@ class DNS_common():
 	def parse_zone_file(self, filename):
 		ttl = ""
 		domain = ""
+		origin = ""
+		ttl = ""
 		zone = []
 		j = 0
 
 		f = open(filename, "r")
 		content = f.read()
+		if ("$ORIGIN" not in content) or ("$TTL" not in content):
+			common.internal_print("Error: invalid zone file, $ORIGIN/$TTL is missing", -1)
+			return (origin, ttl, zone)
 		f.close()
 		while (content.find("\t") != -1) or (content.find("  ") != -1):
 			content = content.replace("\t", " ")
