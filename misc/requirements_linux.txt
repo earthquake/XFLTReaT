@@ -1,3 +1,2 @@
-pyroute2>=0.4.13
 pysctp
 cryptography>=2.2.2

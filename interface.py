@@ -102,31 +102,30 @@ class Interface():
 
 
 	# LINUX #########################################################
-	IFF_TUN = 0x0001
-	IFF_TAP = 0x0002
-	IFF_NO_PI = 0x1000
+	IFF_TUN 	= 0x0001
+	IFF_TAP 	= 0x0002
+	IFF_NO_PI 	= 0x1000
 
 	LINUX_CLONEDEV = "/dev/net/tun"
-	IOCTL_LINUX_TUNSETIFF = 0x400454ca
-	IOCTL_LINUX_SIOCSIFADDR = 0x8916
-	IOCTL_LINUX_SIOCSIFNETMASK = 0x891C
-	IOCTL_LINUX_SIOCSIFMTU = 0x8922
+	IOCTL_LINUX_TUNSETIFF 		= 0x400454ca
+	IOCTL_LINUX_SIOCGIFFLAGS 	= 0x8913
+	IOCTL_LINUX_SIOCSIFFLAGS 	= 0x8914
+	IOCTL_LINUX_SIOCSIFADDR 	= 0x8916
+	IOCTL_LINUX_SIOCSIFNETMASK 	= 0x891C
+	IOCTL_LINUX_SIOCSIFMTU 		= 0x8922
+	IOCTL_LINUX_IFF_UP       	= 0x1
 
-	IOCTL_MACOSX_SIOCSIFADDR = 0x8020690c
+	IOCTL_MACOSX_SIOCSIFADDR 	= 0x8020690c
 	IOCTL_MACOSX_SIOCSIFNETMASK = 0x80206916
-	IOCTL_MACOSX_SIOCSIFMTU = 0x80206934
-	IOCTL_MACOSX_SIOCSIFFLAGS = 0x80206910
-	IOCTL_MACOSX_SIOCAIFADDR = 0x8040691A
+	IOCTL_MACOSX_SIOCSIFMTU 	= 0x80206934
+	IOCTL_MACOSX_SIOCSIFFLAGS 	= 0x80206910
+	IOCTL_MACOSX_SIOCAIFADDR 	= 0x8040691A
 
 
 	# __init__()
 	def lin_init(self):
-		global pyroute2
 		global fcntl
-
-		import pyroute2
 		import fcntl
-		self.ip = pyroute2.IPRoute()
 
 	def lin_tun_alloc(self, dev, flags):
 		try:
@@ -141,9 +140,40 @@ class Interface():
 		return tun
 
 	def lin_set_ip_address(self, dev, ip, serverip, netmask):
-		idx = self.ip.link_lookup(ifname=dev)[0]
-		self.ip.addr('add', index=idx, address=ip, mask=int(netmask))
-		self.ip.link('set', index=idx, state='up')
+		sockfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		try:
+			# set IP
+			ifr  = struct.pack('<16sH2s4s8s', dev, socket.AF_INET, "\x00"*2, socket.inet_aton(ip), "\x00"*8)
+			fcntl.ioctl(sockfd, self.IOCTL_LINUX_SIOCSIFADDR, ifr)
+
+			# get flags
+			ifr = struct.pack('<16sh', dev, 0)
+			flags = struct.unpack('<16sh', fcntl.ioctl(sockfd, self.IOCTL_LINUX_SIOCSIFFLAGS, ifr))[1]
+
+			# set new flags
+			flags = flags | self.IOCTL_LINUX_IFF_UP
+			ifr = struct.pack('<16sh', dev, flags)
+
+			# iface up
+			fcntl.ioctl(sockfd, self.IOCTL_LINUX_SIOCSIFFLAGS, ifr)
+		except Exception as e:
+			common.internal_print("Something went wrong with setting up the interface.", -1)
+			print(e)
+			sys.exit(-1)
+
+		# adding new route for forwarding packets properly.
+		integer_ip = struct.unpack(">I", socket.inet_pton(socket.AF_INET, serverip))[0]
+		rangeip = socket.inet_ntop(socket.AF_INET, struct.pack(">I", integer_ip & ((2**int(netmask))-1)<<32-int(netmask)))
+
+		integer_netmask = struct.pack(">I", ((2**int(netmask))-1)<<32-int(netmask))
+		netmask = socket.inet_ntoa(integer_netmask)
+
+		ps = subprocess.Popen(["route", "add", "-net", rangeip, "netmask", netmask, "dev", dev], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			if not "File exists" in stderr:
+				common.internal_print("Error: adding client route: {0}".format(stderr), -1)
+				sys.exit(-1)
 
 		return
 
@@ -167,68 +197,115 @@ class Interface():
 		return
 
 	def lin_check_default_route(self):
-		if len(self.ip.get_default_routes()) < 1:
+		# get default gateway(s)
+		ps = subprocess.Popen(["route", "-n"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+
+		if stderr != "":
+			common.internal_print("Route error: {0}".format(stderr), -1)
+			sys.exit(-1)
+
+		lines = stdout.split("\n")
+		default_route_number = 0
+		for line in lines:
+			if line[0:7] == "0.0.0.0":
+				default_route_number += 1
+
+		if default_route_number < 1:
 			common.internal_print("No default route. Please set up your routing before executing the tool", -1)
 			sys.exit(-1)
-		if len(self.ip.get_default_routes()) > 1:
+		if default_route_number > 1:
 			common.internal_print("More than one default route. This should be reviewed before executing the tool.", -1)
 			sys.exit(-1)
 
 		return
 
 	def lin_set_default_route(self, serverip, clientip, ip):
-		#TODO tunnel thru a tunnel
-		found = False
-		routes = self.ip.get_routes()
-
 		self.check_default_route()
-		# looking for the the remote server in the route table
-		for attrs in self.ip.get_default_routes()[0]['attrs']:
-			if attrs[0] == "RTA_GATEWAY":
-				self.orig_default_gw = attrs[1]
 
-		for r in routes:
-			i = -1
-			j = -1
-			for a in range(0, len(r["attrs"])):
-				if r["attrs"][a][0] == "RTA_DST":
-					i = a
-				if r["attrs"][a][0] == "RTA_GATEWAY":
-					j = a
-			if (i > -1) and (j > -1):
-				if (r["attrs"][i][1] == serverip) and (r["attrs"][j][1] == self.orig_default_gw):
-					# remote server route was already added
-					found = True
+		# get default gateway
+		ps = subprocess.Popen(["route", "-n"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
 
-		self.ip.route('delete', gateway=self.orig_default_gw, dst="0.0.0.0")
-		self.ip.route('add', gateway=ip, dst="0.0.0.0")
-		if not found:
-			# remote server route was not in the table, adding to it
-			try:
-				self.ip.route('add', gateway=self.orig_default_gw, dst=serverip, mask=32)
-			except:
-				common.internal_print("Error: Something is not quite right with your route table. Please check.", -1)
+		lines = stdout.split("\n")
+		default_route_number = 0
+		for line in lines:
+			if line[0:7] == "0.0.0.0":
+				default_route_line = line[7:]
+
+		i = 0
+		while default_route_line[i:i+1] == " ":
+			i += 1
+		
+		default_route_line = default_route_line[i:]
+		# original default route saved
+		self.orig_default_gw = default_route_line[0:default_route_line.find(" ")]
+
+		# adding static route to the VPN server via original route
+		ps = subprocess.Popen(["route", "add", "-host", serverip, "gw", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			if not "File exists" in stderr:
+				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
 				sys.exit(-1)
+
+		# delete original default route
+		ps = subprocess.Popen(["route", "delete", "default"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			common.internal_print("Error: deleting default route: {0}".format(stderr), -1)
+			sys.exit(-1)
+
+		# new default route set via VPN server
+		ps = subprocess.Popen(["route", "add", "default", "gw", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			common.internal_print("Error: adding new default route: {0}".format(stderr), -1)
+			sys.exit(-1)
 
 		return
 
 	def lin_set_intermediate_route(self, serverip, proxyip):
 		common.internal_print("Changing route table for intermediate hop")
-		self.ip.route('delete', gateway=self.orig_default_gw, dst=serverip, mask=32)
-		self.ip.route('add', gateway=self.orig_default_gw, dst=proxyip, mask=32)
+		ps = subprocess.Popen(["route", "delete", serverip, "gw", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			common.internal_print("Error: delete old route: {0}".format(stderr), -1)
+			sys.exit(-1)
+
+		ps = subprocess.Popen(["route", "add", "-host", proxyip, "gw", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			if not "File exists" in stderr:
+				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+				sys.exit(-1)
 
 		return
 
 	def lin_restore_routes(self, serverip, clientip, ip):
 		common.internal_print("Restoring default route")
-		self.ip.route('delete', gateway=self.orig_default_gw, dst=serverip, mask=32)
-		self.ip.route('add', gateway=self.orig_default_gw, dst="0.0.0.0")
+		ps = subprocess.Popen(["route", "delete", serverip, "gw", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			common.internal_print("Error: delete old route: {0}".format(stderr), -1)
+			sys.exit(-1)
+
+		ps = subprocess.Popen(["route", "add", "default", "gw", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			if not "File exists" in stderr:
+				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+				sys.exit(-1)
 
 		return
 
 	def lin_set_split_route(self, scope, ip):
 		for entry in scope:
-			self.ip.route('add', gateway=ip, dst=entry[0], mask=int(entry[2]))
+			ps = subprocess.Popen(["route", "add", "-net", "{0}/{1}".format(entry[0], entry[2]), "gw", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+			(stdout, stderr) = ps.communicate()
+			if stderr:
+				common.internal_print("Error: add split route: {0}".format(stderr), -1)
+				sys.exit(-1)
 
 		return
 

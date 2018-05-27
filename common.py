@@ -111,7 +111,7 @@ def check_modules_installed():
 
 	# reqs = [["module_name", "package_name"], [...]]
 	if os_type == OS_LINUX:
-		reqs = [["cryptography", "cryptography"], ["pyroute2","pyroute2"], ["sctp","pysctp"]]
+		reqs = [["cryptography", "cryptography"], ["sctp","pysctp"]]
 	if os_type == OS_MACOSX:
 		reqs = [["cryptography", "cryptography"]]
 	if os_type == OS_WINDOWS:
