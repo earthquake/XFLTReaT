@@ -236,7 +236,7 @@ class Interface():
 		i = 0
 		while default_route_line[i:i+1] == " ":
 			i += 1
-		
+
 		default_route_line = default_route_line[i:]
 		# original default route saved
 		self.orig_default_gw = default_route_line[0:default_route_line.find(" ")]

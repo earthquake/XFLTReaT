@@ -293,6 +293,12 @@ class XFLTReaT:
 					# if the module requires an indirect connection (proxy, 
 					# dns) then we need to amend the routing table
 					intermediate_hop = m.get_intermediate_hop(config)
+
+					if config.has_section("Optional"):
+						if config.has_option("Optional", "overriderouter"):
+							if common.is_ipv4(config.get("Optional", "overriderouter")):
+								intermediate_hop = config.get("Optional", "overriderouter")
+
 					if intermediate_hop and (not self.splitmode):
 						remoteserverip = intermediate_hop
 						interface.set_intermediate_route(config.get("Global", "remoteserverip"), remoteserverip)
