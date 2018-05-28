@@ -39,7 +39,8 @@ if not common.os_support():
 	sys.exit(-1)
 # check requirements (python modules) whether or not installed
 if not common.check_modules_installed():
-	sys.exit(-1)
+	if (not "--ignore-dependencies" in sys.argv) and(not "--help" in sys.argv) and (not "-h" in sys.argv):
+		sys.exit(-1)
 
 from modules.Generic_module import Generic_module
 from modules.Stateful_module import Stateful_module
@@ -61,6 +62,7 @@ class XFLTReaT:
 			"  \t--check\t\t\tcheck modules on server side\n"\
 			"  \t--config\t\tspecify config file (default: xfltreat.conf)\n"\
 			"  \t--split\t\t\tsplit tunnel mode (specify scope in config)\n"\
+			"  \t--ignore-dependencies\tignoring missing dependencies\n"\
 			"  \t--verbose\t\t1 = verbose mode\n"\
 			"  \t\t\t\t2 = debug mode")
 
@@ -84,9 +86,10 @@ class XFLTReaT:
 		self.clientmode = 0
 		self.checkmode = 0
 		self.splitmode = 0 # split tunnelling
+		self.ignoredependencies = 0 # ignoring missing dependencies
 
 		self.short = "hsc"
-		self.long = ["help", "server", "client", "check", "split", "config=", "verbose="]
+		self.long = ["help", "server", "client", "check", "split", "config=", "verbose=", "ignore-dependencies"]
 
 		# modules that should not be loaded
 		self.forbidden_modules = ["Generic_module", "Stateful_module", "Stateless_module"]
@@ -117,6 +120,11 @@ class XFLTReaT:
 				self.configfile = arg
 			elif opt in ("--split"):
 				self.splitmode = 1
+			elif opt in ("--ignore-dependencies"):
+				common.internal_print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", -1)
+				common.internal_print("!IGNORING MISSING DEPENDENCIES, THIS COULD RESULT IN UNHANDLED EXCEPTIONS!", -1)
+				common.internal_print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", -1)
+				self.ignoredependencies = 1
 			elif opt in ("--verbose"):
 				try:
 					self.verbosity = int(arg)
@@ -203,7 +211,14 @@ class XFLTReaT:
 				real_modules = [c for c in module_classes if (issubclass(c, Generic_module) and (c not in self.forbidden_modules_instance))]
 				for r in real_modules:
 					# 5. actual instantiation of a module
-					modules.append(r())
+					try:
+						modules.append(r())
+					except Exception as e:
+						if self.ignoredependencies:
+							common.internal_print("This module cannot be used without the dependencies installed: {0}".format(m), -1)
+							pass
+						else:
+							raise
 
 		# if the module is enabled from config, we store it in modules_enabled[]
 		modules_enabled = []
