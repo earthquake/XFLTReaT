@@ -51,11 +51,9 @@ class ICMP(Stateless_module.Stateless_module):
 
 	module_name = "ICMP"
 	module_configname = "ICMP"
-	module_description = """...
-	ICMP
-	...
-	"""
-	module_os_support = common.OS_LINUX | common.OS_MACOSX
+	module_description = """ICMP type 8+0 module. Sends ping requests and 
+	responses. Just an ordinary ping tunnel."""
+	module_os_support = common.OS_LINUX | common.OS_MACOSX | common.OS_WINDOWS
 
 	def __init__(self):
 		super(ICMP, self).__init__()
@@ -268,10 +266,25 @@ class ICMP(Stateless_module.Stateless_module):
 
 		common.internal_print("ICMP sent: {0} seq: {1} id: {2}".format(len(transformed_message), sequence, identifier), 0, self.verbosity, common.DEBUG)
 
-		return self.comms_socket.sendto(
-			self.icmp.create_packet(self.ICMP_send, identifier, sequence, 
-			self.ICMP_prefix+struct.pack(">H", len(transformed_message))+transformed_message), addr)
+		packet = self.icmp.create_packet(self.ICMP_send, identifier, sequence,
+			self.ICMP_prefix+struct.pack(">H", len(transformed_message))+transformed_message)
 
+		# WORKAROUND?!
+		# Windows: It looks like when the buffer fills up the OS does not do
+		# congestion control, instead throws and exception/returns with
+		# WSAEWOULDBLOCK which means that we need to try it again later.
+		# So we sleep 100ms and hope that the buffer has more space for us.
+		# If it does then it sends the data, otherwise tries it in an infinite
+		# loop...
+		while True:
+			try:
+				return self.comms_socket.sendto(packet, addr)
+			except socket.error as se:
+				if se.args[0] == 10035: # WSAEWOULDBLOCK
+					time.sleep(0.1)
+					pass
+				else:
+					raise
 
 	def recv(self):
 		message, addr = self.comms_socket.recvfrom(1508)
@@ -295,6 +308,192 @@ class ICMP(Stateless_module.Stateless_module):
 
 		return message[1:], addr, identifier, sequence, queue_length
 
+	def communication_win(self, is_check):
+		import win32event
+		import win32file
+		import win32api
+		import pywintypes
+		import winerror
+
+		# event for the socket
+		hEvent_sock = win32event.CreateEvent(None, 0, 0, None)
+		win32file.WSAEventSelect(self.comms_socket, hEvent_sock, win32file.FD_READ)
+
+		# descriptor list
+		self.rlist = [self.comms_socket]
+		# overlapped list
+		self.olist = [0]
+		# event list
+		self.elist = [hEvent_sock]
+		# message buffer list
+		self.mlist = [0]
+		# id of the read object - put in this if it was read
+		self.ulist = []
+		if not self.serverorclient and self.tunnel:
+				# client mode
+				# objects created for the tunnel and put in the corresponding
+				# lists
+				hEvent_pipe = win32event.CreateEvent(None, 0, 0, None) # for reading from the pipe
+				overlapped_pipe = pywintypes.OVERLAPPED()
+				overlapped_pipe.hEvent = hEvent_pipe
+				message_buffer = win32file.AllocateReadBuffer(4096)
+				self.rlist.append(self.tunnel)
+				self.olist.append(overlapped_pipe)
+				self.elist.append(hEvent_pipe)
+				self.mlist.append(message_buffer)
+				self.ulist.append(1)
+
+		while not self._stop:
+			try:
+				if not self.tunnel:
+					# check or server mode without client only with socket
+					#message, addr = self.comms_socket.recvfrom(1508)
+					rc = win32event.WaitForSingleObject(hEvent_sock, int(self.timeout*1000))
+					if rc == winerror.WAIT_TIMEOUT:
+						# timed out, just rerun and wait
+						continue
+
+				else:
+					if self.ulist:
+						# there is somebody waiting to be read
+						for idx in self.ulist:
+							# issueing ReadFile on all not yet read mailslots/tunnel
+							hr, _ = win32file.ReadFile(self.rlist[idx], self.mlist[idx], self.olist[idx])
+							if (hr != 0) and (hr != winerror.ERROR_IO_PENDING):
+								common.internal_print("UDP ReadFile failed: {0}".format(hr), -1)
+								raise
+
+						self.ulist = []
+
+					# waiting to get some data somewhere
+					rc = win32event.WaitForMultipleObjects(self.elist, 0, int(self.timeout*1000))
+					if rc == winerror.WAIT_TIMEOUT:
+						# timed out, just rerun and wait
+						continue
+
+				if rc < 0x80: # STATUS_ABANDONED_WAIT_0
+					if rc > 0:
+						# the tunnel or one of the mailslots got signalled
+						self.ulist.append(rc)
+						if (self.olist[rc].InternalHigh < 4) or (self.mlist[rc][0:1] != "\x45"): #Only care about IPv4
+							continue
+
+						readytogo = self.mlist[rc][0:self.olist[rc].InternalHigh]
+
+						if self.serverorclient:
+							c = self.lookup_client_priv(readytogo)
+							if c:
+								# if the differece between the received and set sequences too big
+								# some routers/firewalls just drop older sequences. If it gets
+								# too big, we just drop the older ones and use the latest X packet
+								# this helps on stabality.
+								if (c.get_ICMP_received_sequence() - c.get_ICMP_sent_sequence()) >= self.TRACKING_THRESHOLD:
+									c.set_ICMP_sent_sequence(c.get_ICMP_received_sequence() - self.TRACKING_ADJUST)
+
+								# get client related values: identifier and sequence number
+								identifier = c.get_ICMP_sent_identifier()
+								sequence = c.get_ICMP_sent_sequence()
+
+								# queueing every packet first
+								c.queue_put(readytogo)
+								# are there any packets to answer?
+								if (c.get_ICMP_received_sequence() - sequence) == 0:
+									continue
+								else:
+									request_num = 0
+									# if there is less packet than that we have in the queue
+									# then we cap the outgoing packet number
+									if (c.get_ICMP_received_sequence() - sequence) < (c.queue_length()):
+										number_to_get = (c.get_ICMP_received_sequence() - sequence)
+									else:
+										# send all packets from the queue
+										number_to_get = c.queue_length()
+
+									for i in range(0, number_to_get):
+										# get first packet
+										readytogo = c.queue_get()
+										# is it he last one we are sending now?
+										if i == (number_to_get - 1):
+											# if the last one and there is more in the queue
+											# then we ask for dummy packets
+											request_num = c.queue_length()
+										# go packets go!
+										self.send(common.DATA_CHANNEL_BYTE, readytogo,
+											((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port()),
+											identifier, sequence + i + 1, request_num))
+
+									sequence = (sequence + i + 1) % 65536
+									c.set_ICMP_sent_sequence(sequence)
+							else:
+								# there is no client with that IP
+								common.internal_print("Client not found, strange?!", 0, self.verbosity, common.DEBUG)
+								continue
+						else:
+							if self.authenticated:
+								# whatever we have from the tunnel, just encapsulate it
+								# and send it out
+								self.ICMP_sequence = (self.ICMP_sequence + 1) % 65536
+								self.send(common.DATA_CHANNEL_BYTE, readytogo,
+									(self.server_tuple, self.ICMP_identifier, self.ICMP_sequence, 0)) #??
+							else:
+								common.internal_print("Spoofed packets, strange?!", 0, self.verbosity, common.DEBUG)
+								continue
+					if rc == 0:
+						# socket got signalled
+						message, addr, identifier, sequence, queue_length = self.recv()
+
+						if len(message) == 0:
+							continue
+
+						c = None
+						if self.serverorclient:
+							self.authenticated = False
+							c = self.lookup_client_pub((addr, 0))
+							if c:
+								c.set_ICMP_received_identifier(identifier)
+								# packets does not arrive in order sometime
+								# if higher sequence arrived already, then we
+								# do not modify
+								# 16bit integer MAX could be a bit tricky, a
+								# threshold had to be introduced to make it
+								# fail safe. Hacky but should work.
+								ICMP_THRESHOLD = 100
+								if (sequence > c.get_ICMP_received_sequence()) or ((sequence < ICMP_THRESHOLD) and ((sequence + 65536)>c.get_ICMP_received_sequence()) and (c.get_ICMP_received_sequence()>ICMP_THRESHOLD)):
+									c.set_ICMP_received_sequence(sequence)
+						else:
+							if queue_length:
+								common.internal_print("sending {0} dummy packets".format(queue_length), 0, self.verbosity, common.DEBUG)
+								for i in range(queue_length+10):
+									self.ICMP_sequence = (self.ICMP_sequence + 1) % 65536
+									self.do_dummy_packet(self.ICMP_identifier,
+										self.ICMP_sequence)
+
+						if common.is_control_channel(message[0:1]):
+							if self.controlchannel.handle_control_messages(self, message[len(common.CONTROL_CHANNEL_BYTE):], (addr, identifier, sequence, 0)):
+								continue
+							else:
+								self.stop()
+								break
+
+						if c:
+							self.authenticated = c.get_authenticated()
+
+						if self.authenticated:
+							try:
+								self.packet_writer(message[len(common.CONTROL_CHANNEL_BYTE):])
+							except OSError as e:
+								print(e)
+
+			except win32api.error as e:
+				common.internal_print("UDP Exception: {0}".format(e), -1)
+			except socket.error as se:
+				if se.args[0] == 10054: # port is unreachable
+					common.internal_print("Server's port is unreachable: {0}".format(se), -1)
+					self._stop = True
+
+		return True
+
+
 	def communication_unix(self, is_check):
 		sequence = 0
 		identifier = 0
@@ -308,7 +507,7 @@ class ICMP(Stateless_module.Stateless_module):
 			try:
 				readable, writable, exceptional = select.select(self.rlist, wlist, xlist, self.timeout)
 			except select.error, e:
-				print "select.error: %r".format(e)
+				common.internal_print("select.error: %r".format(e), -1)
 				break
 			try:
 				if not readable:
@@ -354,6 +553,7 @@ class ICMP(Stateless_module.Stateless_module):
 									if (c.get_ICMP_received_sequence() - sequence) == 0:
 										continue
 									else:
+										request_num = 0
 										# if there is less packet than that we have in the queue
 										# then we cap the outgoing packet number
 										if (c.get_ICMP_received_sequence() - sequence) < (c.queue_length()):
@@ -363,6 +563,7 @@ class ICMP(Stateless_module.Stateless_module):
 											number_to_get = c.queue_length()
 
 										for i in range(0, number_to_get):
+
 											# get first packet
 											readytogo = c.queue_get()
 											# is it he last one we are sending now?
@@ -372,7 +573,7 @@ class ICMP(Stateless_module.Stateless_module):
 												request_num = c.queue_length()
 											# go packets go!
 											self.send(common.DATA_CHANNEL_BYTE, readytogo,
-												((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port()), 
+												((socket.inet_ntoa(c.get_public_ip_addr()), c.get_public_src_port()),
 												identifier, sequence + i + 1, request_num))
 
 										sequence = (sequence + i + 1) % 65536
@@ -387,7 +588,7 @@ class ICMP(Stateless_module.Stateless_module):
 									# whatever we have from the tunnel, just encapsulate it
 									# and send it out
 									self.ICMP_sequence = (self.ICMP_sequence + 1) % 65536
-									self.send(common.DATA_CHANNEL_BYTE, readytogo, 
+									self.send(common.DATA_CHANNEL_BYTE, readytogo,
 										(self.server_tuple, self.ICMP_identifier, self.ICMP_sequence, 0)) #??
 								else:
 									common.internal_print("Spoofed packets, strange?!", 0, self.verbosity, common.DEBUG)
@@ -409,7 +610,7 @@ class ICMP(Stateless_module.Stateless_module):
 								# packets does not arrive in order sometime
 								# if higher sequence arrived already, then we
 								# do not modify
-								# 16bit integer MAX could be a bit tricky, a 
+								# 16bit integer MAX could be a bit tricky, a
 								# threshold had to be introduced to make it
 								# fail safe. Hacky but should work.
 								ICMP_THRESHOLD = 100
@@ -452,14 +653,19 @@ class ICMP(Stateless_module.Stateless_module):
 
 	def serve(self):
 		server_socket = None
+		self.serverorclient = 1
+
 		try:
 			common.internal_print("Starting module: {0} on {1}".format(self.get_module_name(), self.config.get("Global", "serverbind")))
 		
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
-			whereto = (self.config.get("Global", "serverbind"), self.ICMP_fake_serverport)
+			if (self.os_type == common.OS_WINDOWS) or (self.os_type == common.OS_MACOSX):
+				common.internal_print("This module can be run in client mode only on this operating system.", -1)
+
+				self.cleanup()
+				return
 
 			self.comms_socket = server_socket
-			self.serverorclient = 1
 			self.authenticated = False
 
 			self.communication_initialization()
@@ -479,6 +685,11 @@ class ICMP(Stateless_module.Stateless_module):
 			common.internal_print("Starting client: {0}".format(self.get_module_name()))
 
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
+			if self.os_type == common.OS_WINDOWS:
+				# this should give back the default route interface IP
+				default_host_ip = socket.gethostbyname(socket.gethostname())
+				server_socket.bind((default_host_ip, 0))
+
 			self.server_tuple = (self.config.get("Global", "remoteserverip"), self.ICMP_fake_serverport)
 			self.comms_socket = server_socket
 			self.serverorclient = 0
@@ -502,6 +713,11 @@ class ICMP(Stateless_module.Stateless_module):
 			common.internal_print("Checking module on server: {0}".format(self.get_module_name()))
 
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
+			if self.os_type == common.OS_WINDOWS:
+				# this should give back the default route interface IP
+				default_host_ip = socket.gethostbyname(socket.gethostname())
+				server_socket.bind((default_host_ip, 0))
+
 			self.server_tuple = (self.config.get("Global", "remoteserverip"), self.ICMP_fake_serverport)
 			self.comms_socket = server_socket
 			self.serverorclient = 0
