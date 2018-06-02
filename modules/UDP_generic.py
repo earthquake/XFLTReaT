@@ -180,6 +180,9 @@ class UDP_generic(Stateless_module.Stateless_module):
 				if not self.tunnel:
 					# check or server mode without client only with socket
 					rc = win32event.WaitForSingleObject(hEvent_sock, int(self.timeout*1000))
+					if rc == winerror.WAIT_TIMEOUT:
+						# timed out, just rerun and wait
+						continue
 				else:
 					if self.ulist:
 						# there is somebody waiting to be read
@@ -267,7 +270,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 			try:
 				readable, writable, exceptional = select.select(self.rlist, wlist, xlist, self.timeout)
 			except select.error as e:
-				print "select.error: %r".format(e)
+				common.internal_print("select.error: %r".format(e), -1)
  				break
 
 			if (not readable) and is_check:

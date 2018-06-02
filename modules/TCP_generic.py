@@ -162,6 +162,9 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 					# user is not authenticated yet, so there is no pipe
 					# only checking the socket for data
 					rc = win32event.WaitForSingleObject(hEvent_sock, int(self.timeout*1000))
+					if rc == winerror.WAIT_TIMEOUT:
+						# timed out, just rerun and wait
+						continue
 				else:
 					# client mode so we have the socket and tunnel as well
 					# or the client authenticated and the pipe was created
