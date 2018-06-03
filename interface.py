@@ -322,7 +322,7 @@ class Interface():
 	MACOS_UTUN_OPT_IFNAME = 2
 	MACOS_MAX_KCTL_NAME = 96
 	MACOS_CTLIOCGINFO = 0xc0644e03
-	MACOS_temp = None # TODO, do we really need to declare this?
+	MACOS_temp = None
 
 	# __init__()
 	def mac_init(self):
