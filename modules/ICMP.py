@@ -43,10 +43,6 @@ import common
 from support.icmp_proto import ICMP_Proto
 from support.icmp_proto import ICMP_Client
 
-#TODO: reverse check from the server
-# if the client does not answer, the packets does not go thru
-# seq must be modified.
-
 class ICMP(Stateless_module.Stateless_module):
 
 	module_name = "ICMP"
@@ -228,7 +224,7 @@ class ICMP(Stateless_module.Stateless_module):
 	# start talking to the server
 	# do authentication or encryption first
 	def do_hello(self):
-		# TODO: maybe change this later to push some more info, not only the 
+		# TODO: maybe change this later to push some more info, not just the 
 		# private IP
 		message = socket.inet_aton(self.config.get("Global", "clientip"))
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT+message, 

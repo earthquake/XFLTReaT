@@ -143,7 +143,6 @@ class Stateful_thread(threading.Thread):
 		packet = os.read(tunnel, 4096)
 		return packet
 
-	# TODO: placeholder function to transform packets back and forth.
 	# encryption, encodings anything that should be done on the packet and 
 	# should be easily variable based on the config
 	def transform(self, details, packet, encrypt):
@@ -338,7 +337,7 @@ class Stateful_thread(threading.Thread):
 	# start talking to the server
 	# do authentication or encryption first
 	def do_hello(self):
-		# TODO: maybe change this later to push some more info, not only the 
+		# TODO: maybe change this later to push some more info, not just the 
 		# private IP
 		message = socket.inet_aton(self.config.get("Global", "clientip"))
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT+message, None)

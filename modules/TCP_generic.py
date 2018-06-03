@@ -101,8 +101,6 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 		messages = []
 		message = self.partial_message + self.comms_socket.recv(4096)
 		if len(message) == len(self.partial_message):
-			# TODO: check other module if they have this
-			# 0 length read, socket died
 			self._stop = True
 
 		if len(message) < 2:
