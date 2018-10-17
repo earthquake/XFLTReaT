@@ -58,7 +58,7 @@ OS_FREEBSD	= 8
 OS_OPENBSD	= 16
 OS_WHATNOT	= 32
 
-OS_SUPPORTED = OS_LINUX | OS_MACOSX | OS_WINDOWS
+OS_SUPPORTED = OS_LINUX | OS_MACOSX | OS_WINDOWS | OS_FREEBSD
 
 # print severity levels:
 # 	0	always
@@ -116,6 +116,8 @@ def check_modules_installed():
 		reqs = [["cryptography", "cryptography"]]
 	if os_type == OS_WINDOWS:
 		reqs = [["cryptography", "cryptography"], ["win32file","pywin32"]]
+	if os_type == OS_FREEBSD:
+		reqs = [["cryptography", "cryptography"]]
 
 	allinstalled = True
 	for m in reqs:
@@ -157,7 +159,7 @@ def get_os_release():
 # get the privilege level, True if it is enough to run.
 def get_privilege_level():
 	os_type = get_os_type()
-	if (os_type == OS_LINUX) or (os_type == OS_MACOSX):
+	if (os_type == OS_LINUX) or (os_type == OS_MACOSX) or (os_type == OS_FREEBSD):
 		if os.getuid() == 0:
 			return True
 		else:
@@ -225,6 +227,15 @@ def check_router_settings(config):
 
 			return False
 
+	if os_type == OS_FREEBSD:
+		'''
+		# net.link.tun.devfs_cloning should be nonzero!
+	    If	the sysctl(8) variable net.link.tun.devfs_cloning is non-zero, the tun
+	    interface permits opens on	the special control device /dev/tun.  When
+	    this device is opened, tun	will return a handle for the lowest unused tun
+	    device (use devname(3) to determine which).
+	    '''
+		print "TODO"
 
 	return True
 
