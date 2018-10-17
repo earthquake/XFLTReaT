@@ -34,6 +34,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.exceptions import UnsupportedAlgorithm
 
 import common
 import Generic_encryption_module
@@ -258,6 +259,18 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 	#	- reading the files into memory
 	#	- parsing the keys
 	def init(self, config, servermode):
+		try:
+			extended_nonce = os.urandom(4)*4
+			algorithm = algorithms.ChaCha20("0"*32, extended_nonce)
+			cipher = Cipher(algorithm, mode=None, backend=default_backend())
+			decryptor = cipher.decryptor()
+		except UnsupportedAlgorithm:
+			common.internal_print("OpenSSL library is outdated. Please update.", -1)
+			return False
+		except:
+			common.internal_print("Something went wrong with the cryptography engine. Most probably OpenSSL related.", -1)
+			return False
+
 		if servermode:
 			if not (os.path.exists(self.server_public_key_file) or os.path.exists(self.server_private_key_file)):
 				common.internal_print("Both public and private key is missing. This must be the first run. Generating keys...", 1)

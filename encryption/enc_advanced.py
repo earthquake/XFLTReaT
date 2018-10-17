@@ -69,7 +69,6 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		nonce = os.urandom(12)
 		return nonce+chacha.encrypt(nonce, plaintext, None)
 
-
 	def decrypt(self, shared_key, ciphertext):
 		chacha = ChaCha20Poly1305(shared_key)
 		return chacha.decrypt(ciphertext[0:12], ciphertext[12:], None)
@@ -249,6 +248,15 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 	#	- reading the files into memory
 	#	- parsing the keys
 	def init(self, config, servermode):
+		try:
+			chacha = ChaCha20Poly1305("0"*32)
+		except:
+			common.internal_print("OpenSSL library is outdated. Please update.", -1)
+			return False
+		except:
+			common.internal_print("Something went wrong with the cryptography engine. Most probably OpenSSL related.", -1)
+			return False
+
 		if servermode:
 			if not (os.path.exists(self.server_public_key_file) or os.path.exists(self.server_private_key_file)):
 				common.internal_print("Both public and private key is missing. This must be the first run. Generating keys...", 1)
