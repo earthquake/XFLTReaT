@@ -34,6 +34,7 @@ import struct
 import time
 import os
 import subprocess
+import array
 
 import common
 
@@ -60,6 +61,11 @@ class Interface():
 			self.win_check_default_route, self.win_set_default_route,
 			self.win_set_intermediate_route, self.win_restore_routes,
 			self.win_set_split_route, self.win_del_split_route],
+		common.OS_FREEBSD	: [self.freebsd_init, self.freebsd_tun_alloc,
+			self.freebsd_set_ip_address, self.freebsd_set_mtu, self.freebsd_close_tunnel,
+			self.freebsd_check_default_route, self.freebsd_set_default_route,
+			self.freebsd_set_intermediate_route, self.freebsd_restore_routes,
+			self.freebsd_set_split_route, self.freebsd_del_split_route],
 		}
 		os_type = common.get_os_type()
 		if not (os_type in OSFP_table):
@@ -121,6 +127,15 @@ class Interface():
 	IOCTL_MACOSX_SIOCSIFFLAGS 	= 0x80206910
 	IOCTL_MACOSX_SIOCAIFADDR 	= 0x8040691A
 
+	IOCTL_FREEBSD_SIOCIFCREATE2 = 0xc020697c
+	IOCTL_FREEBSD_SIOCIFDESTROY	= 0x80206979
+	IOCTL_FREEBSD_SIOCSIFNAME 	= 0x80206928
+	IOCTL_FREEBSD_SIOCAIFADDR 	= 0x8044692b
+	IOCTL_FREEBSD_SIOCGIFFLAGS 	= 0xc0206911
+	IOCTL_FREEBSD_SIOCSIFFLAGS 	= 0x80206910
+	IOCTL_FREEBSD_SIOCSIFMTU 	= 0x80206934
+	IOCTL_FREEBSD_IFF_UP 		= 0x1
+	IOCTL_FREEBSD_FIODGNAME		= 0x80106678
 
 	# __init__()
 	def lin_init(self):
@@ -855,3 +870,198 @@ class Interface():
 				common.internal_print("Delete split route to server failed: {0}".format(stderr), -1)
 				sys.exit(-1)
 		return
+
+	# FreeBSD #######################################################
+
+	# __init__()
+	def freebsd_init(self):
+		global fcntl
+		import fcntl
+
+	def freebsd_tun_alloc(self, dev, flags):
+		try:
+			sockfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			ifr = struct.pack('<16si', 'tun', 0)
+			self.iface_name = fcntl.ioctl(sockfd, self.IOCTL_FREEBSD_SIOCIFCREATE2, ifr)
+			self.iface_name = self.iface_name.rstrip("\x00")
+
+			buff = array.array('c', dev+"\x00")
+			caddr_t, _ = buff.buffer_info()
+			ifr = struct.pack('16sP', self.iface_name, caddr_t);
+
+			fcntl.ioctl(sockfd, self.IOCTL_FREEBSD_SIOCSIFNAME, ifr)
+			tun = os.open("/dev/"+self.iface_name, os.O_RDWR | os.O_NONBLOCK)
+			self.iface_name = dev
+
+		except IOError as e:
+			print e
+			common.internal_print("Error: Cannot create tunnel. Is {0} in use?".format(dev), -1)
+			sys.exit(-1)
+
+		return tun
+
+	def freebsd_set_ip_address(self, dev, ip, serverip, netmask):
+		sockfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		try:
+			#set ip, serverip and netmask
+			ifaliasreq = struct.pack('<16sBBHI8sBBHI8sBBHI8sI', self.iface_name,
+				16, socket.AF_INET, 0, struct.unpack('<I', socket.inet_aton(ip))[0], '\x00'*8,
+				16, socket.AF_INET, 0, struct.unpack('<I', socket.inet_aton(serverip))[0], '\x00'*8,
+				16, socket.AF_INET, 0, struct.unpack('<I', socket.inet_aton('255.255.255.255'))[0],
+				'\x00'*8,
+				0)
+			fcntl.ioctl(sockfd, self.IOCTL_FREEBSD_SIOCAIFADDR, ifaliasreq)
+
+			# get flags
+			ifr = struct.pack('<16sh', self.iface_name, 0)
+			flags = struct.unpack('<16sh', fcntl.ioctl(sockfd, self.IOCTL_FREEBSD_SIOCGIFFLAGS, ifr))[1]
+
+			# set new flags
+			flags = flags | self.IOCTL_FREEBSD_IFF_UP
+			ifr = struct.pack('<16sh', self.iface_name, flags)
+
+			# iface up
+			fcntl.ioctl(sockfd, self.IOCTL_FREEBSD_SIOCSIFFLAGS, ifr)
+		except Exception as e:
+			common.internal_print("Something went wrong with setting up the interface.", -1)
+			print(e)
+			sys.exit(-1)
+
+		# adding new route for forwarding packets properly.
+		integer_ip = struct.unpack(">I", socket.inet_pton(socket.AF_INET, serverip))[0]
+		rangeip = socket.inet_ntop(socket.AF_INET, struct.pack(">I", integer_ip & ((2**int(netmask))-1)<<32-int(netmask)))
+
+		ps = subprocess.Popen(["route", "add", "-net", rangeip+"/"+netmask, serverip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			if not "File exists" in stderr:
+				common.internal_print("Error: adding client route: {0}".format(stderr), -1)
+				sys.exit(-1)
+
+		return
+
+	def freebsd_set_mtu(self, dev, mtu):
+		s = socket.socket(type=socket.SOCK_DGRAM)
+		try:
+			ifr = struct.pack('<16sH', self.iface_name, mtu) + '\x00'*14
+			fcntl.ioctl(s, self.IOCTL_FREEBSD_SIOCSIFMTU, ifr)
+		except Exception as e:
+			common.internal_print("Cannot set MTU ({0}) on interface".format(mtu), -1)
+			sys.exit(-1)
+
+		return
+
+	def freebsd_close_tunnel(self, tun):
+		try:
+			os.close(tun)
+
+		except:
+			pass
+
+		s = socket.socket(type=socket.SOCK_DGRAM)
+		try:
+			ifr = struct.pack('<16s', self.iface_name) + '\x00'*16
+			fcntl.ioctl(s, self.IOCTL_FREEBSD_SIOCIFDESTROY, ifr)
+		except Exception as e:
+			common.internal_print("Cannot destroy interface: {0}".format(dev), -1)
+
+		return
+
+
+	def freebsd_check_default_route(self):
+		# get default gateway
+		ps = subprocess.Popen(["route", "-n", "get", "default"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+
+		# is there a default gateway entry?
+		if "route has not been found" in stderr:
+			common.internal_print("No default route. Please set up your routing before executing the tool", -1)
+			sys.exit(-1)
+
+		return
+
+	def freebsd_set_default_route(self, serverip, clientip, ip):
+		# get default gateway
+		ps = subprocess.Popen(["route", "-n", "get", "default"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+
+		# is there a default gateway entry?
+		if "route has not been found" in stderr:
+			common.internal_print("No default route. Please set up your routing before executing the tool", -1)
+			sys.exit(-1)
+
+		self.orig_default_gw = stdout.split("gateway: ")[1].split("\n")[0]
+
+		# is it an ipv4 address?
+		if not common.is_ipv4(self.orig_default_gw):
+			common.internal_print("Default gateway is not an IPv4 address.", -1)
+			sys.exit(-1)
+
+		ps = subprocess.Popen(["route", "add", "-net", serverip, self.orig_default_gw, "255.255.255.255"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			if not "File exists" in stderr:
+				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+				sys.exit(-1)
+
+		ps = subprocess.Popen(["route", "delete", "default"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			common.internal_print("Error: deleting default route: {0}".format(stderr), -1)
+			sys.exit(-1)
+
+		ps = subprocess.Popen(["route", "add", "default", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			common.internal_print("Error: adding new default route: {0}".format(stderr), -1)
+			sys.exit(-1)
+
+		return
+
+	def freebsd_set_intermediate_route(self, serverip, proxyip):
+		common.internal_print("Changing route table for intermediate hop")
+
+		ps = subprocess.Popen(["route", "delete", serverip+"/32", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			common.internal_print("Error: delete old route: {0}".format(stderr), -1)
+			sys.exit(-1)
+
+		ps = subprocess.Popen(["route", "add", "-net", proxyip, self.orig_default_gw, "255.255.255.255"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			if not "File exists" in stderr:
+				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+				sys.exit(-1)
+		return
+
+	def freebsd_restore_routes(self, serverip, clientip, ip):
+		common.internal_print("Restoring default route")
+
+		ps = subprocess.Popen(["route", "delete", serverip+"/32", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			common.internal_print("Error: delete old route: {0}".format(stderr), -1)
+			sys.exit(-1)
+
+		ps = subprocess.Popen(["route", "add", "default", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		(stdout, stderr) = ps.communicate()
+		if stderr:
+			if not "File exists" in stderr:
+				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+				sys.exit(-1)
+
+		return
+
+	def freebsd_set_split_route(self, scope, ip):
+		for entry in scope:
+			ps = subprocess.Popen(["route", "add", "{0}/{1}".format(entry[0], entry[2]), ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+			(stdout, stderr) = ps.communicate()
+			if stderr:
+				common.internal_print("Error: adding new split route: {0}".format(stderr), -1)
+				sys.exit(-1)
+		return
+
+	def freebsd_del_split_route(self, scope, ip):
+		return
+
