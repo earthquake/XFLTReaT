@@ -377,6 +377,9 @@ class XFLTReaT:
 				ps.stop()
 				for t in module_threads:
 					t.stop()
+				if self.servermode:
+					time.sleep(1.0)
+					interface.close_tunnel(server_tunnel)
 
 		# give one sec to clean up for modules, otherwise some objects just
 		# disapper and cannot be closed properly like the tunnel interface
