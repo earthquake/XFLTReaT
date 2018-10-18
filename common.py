@@ -228,14 +228,27 @@ def check_router_settings(config):
 			return False
 
 	if os_type == OS_FREEBSD:
-		'''
-		# net.link.tun.devfs_cloning should be nonzero!
-	    If	the sysctl(8) variable net.link.tun.devfs_cloning is non-zero, the tun
-	    interface permits opens on	the special control device /dev/tun.  When
-	    this device is opened, tun	will return a handle for the lowest unused tun
-	    device (use devname(3) to determine which).
-	    '''
-		print "TODO"
+		try:
+			f = open('/etc/rc.conf','r')
+			content = f.read()
+			f.close()
+			found = False
+			for line in content.split("\n"):
+				if line.find("gateway_enable") != -1:
+					if line.lower().find("yes") != -1:
+						found = True
+					break
+
+			if not found:
+				internal_print("The IP forwarding is not set.", -1)
+				internal_print("Please set the gateway_enable directive to yes in rc.conf.", -1)
+
+				return False
+		except IOError:
+			internal_print("Could not open rc.conf", -1)
+
+			return False
+		
 
 	return True
 
