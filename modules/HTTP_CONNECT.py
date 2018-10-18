@@ -52,7 +52,7 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 		proxies.
 		This module was tested with Squid3, default config.
 		"""
-	module_os_support = common.OS_LINUX | common.OS_MACOSX | common.OS_WINDOWS
+	module_os_support = common.OS_LINUX | common.OS_MACOSX | common.OS_WINDOWS | common.OS_FREEBSD
 
 	def http_connect_request(self, server_socket):
 		if self.config.has_option("Global", "remoteserverhost"):

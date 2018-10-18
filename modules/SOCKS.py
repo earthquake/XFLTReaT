@@ -51,7 +51,7 @@ class SOCKS(TCP_generic.TCP_generic):
 	module_description = """SOCKS Proxy support for version 4, 4a, 5. This 
 		module is based on the TCP_generic module.
 		"""
-	module_os_support = common.OS_LINUX | common.OS_MACOSX | common.OS_WINDOWS
+	module_os_support = common.OS_LINUX | common.OS_MACOSX | common.OS_WINDOWS | common.OS_FREEBSD
 
 	def __init__(self):
 		super(SOCKS, self).__init__()
