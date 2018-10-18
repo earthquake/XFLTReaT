@@ -878,6 +878,7 @@ class Interface():
 		global fcntl
 		import fcntl
 
+	# @sghctoma for the win. Thanks for the help to support FreeBSD.
 	def freebsd_tun_alloc(self, dev, flags):
 		try:
 			sockfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -954,7 +955,6 @@ class Interface():
 	def freebsd_close_tunnel(self, tun):
 		try:
 			os.close(tun)
-
 		except:
 			pass
 
