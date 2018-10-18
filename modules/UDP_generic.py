@@ -47,7 +47,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 	This module lacks of any encryption or encoding, which comes to the interface
 	goes to the socket back and forth. Nothing special.
 	"""
-	module_os_support = common.OS_LINUX | common.OS_MACOSX | common.OS_WINDOWS
+	module_os_support = common.OS_LINUX | common.OS_MACOSX | common.OS_WINDOWS | common.OS_FREEBSD
 
 	def __init__(self):
 		super(UDP_generic, self).__init__()
