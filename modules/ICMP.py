@@ -53,7 +53,7 @@ class ICMP(Stateless_module.Stateless_module):
 	module_configname = "ICMP"
 	module_description = """ICMP type 8+0 module. Sends ping requests and 
 	responses. Just an ordinary ping tunnel."""
-	module_os_support = common.OS_LINUX | common.OS_MACOSX | common.OS_WINDOWS
+	module_os_support = common.OS_LINUX | common.OS_MACOSX | common.OS_WINDOWS | common.OS_FREEBSD
 
 	def __init__(self):
 		super(ICMP, self).__init__()
