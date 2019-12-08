@@ -28,7 +28,7 @@ if "icmp_proto.py" in sys.argv[0]:
 
 import struct
 import math
-import Queue
+import queue
 # local modules
 import client
 
@@ -74,7 +74,7 @@ class ICMP_Client(client.Client):
 		self.ICMP_received_sequence = -1
 		self.ICMP_sent_sequence = -1
 		#Queue
-		self.q = Queue.Queue()
+		self.q = queue.queue()
 
 
 	#QUEUING

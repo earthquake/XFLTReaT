@@ -35,7 +35,7 @@ import threading
 import random
 import math
 import os.path
-import Queue
+import queue
 import string
 import binascii
 

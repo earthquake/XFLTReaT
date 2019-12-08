@@ -29,7 +29,7 @@ import os
 import inspect
 import threading
 import errno
-import ConfigParser
+import configparser
 
 
 #local files
@@ -147,7 +147,7 @@ class XFLTReaT:
 		
 		# Looking for and parsing config file.
 		common.internal_print("Parsing config file")
-		config = ConfigParser.ConfigParser()
+		config = configparser.configparser()
 		try:
 			config.read(self.configfile)
 		except:

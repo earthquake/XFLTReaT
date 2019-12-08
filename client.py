@@ -27,7 +27,7 @@ if "client.py" in sys.argv[0]:
 	sys.exit(-1)
 
 
-import Queue
+import queue
 import encryption
 
 # python 2.7 hack to have inheritance. Without the metaclass, the inhericance

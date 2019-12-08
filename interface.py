@@ -895,7 +895,7 @@ class Interface():
 			self.iface_name = dev
 
 		except IOError as e:
-			print e
+			print(e)
 			common.internal_print("Error: Cannot create tunnel. Is {0} in use?".format(dev), -1)
 			sys.exit(-1)
 

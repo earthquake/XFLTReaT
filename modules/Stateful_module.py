@@ -35,7 +35,7 @@ import threading
 
 
 #local files
-from Generic_module import Generic_module
+from modules.Generic_module import Generic_module
 from interface import Interface
 import controlchannel
 import packetselector

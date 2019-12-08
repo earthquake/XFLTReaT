@@ -28,7 +28,7 @@ if "dns_proto.py" in sys.argv[0]:
 
 import struct
 import socket
-import Queue
+import queue
 import math
 
 # local modules
