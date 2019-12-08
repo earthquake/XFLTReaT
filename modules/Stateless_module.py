@@ -34,7 +34,7 @@ import struct
 import threading
 
 #local files
-from Generic_module import Generic_module
+import modules.Generic_module as Generic_module
 from interface import Interface
 import controlchannel
 import client
@@ -43,7 +43,7 @@ import encryption
 import threading
 import checks
 
-class Stateless_module(Generic_module):
+class Stateless_module(Generic_module.Generic_module):
 	def __init__(self):
 		super(Stateless_module, self).__init__()
 		self.checks = checks.Checks()

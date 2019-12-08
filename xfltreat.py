@@ -147,7 +147,7 @@ class XFLTReaT:
 		
 		# Looking for and parsing config file.
 		common.internal_print("Parsing config file")
-		config = configparser.configparser()
+		config = configparser.ConfigParser()
 		try:
 			config.read(self.configfile)
 		except:

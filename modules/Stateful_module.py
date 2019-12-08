@@ -35,7 +35,7 @@ import threading
 
 
 #local files
-from modules.Generic_module import Generic_module
+import modules.Generic_module as Generic_module
 from interface import Interface
 import controlchannel
 import packetselector
@@ -389,7 +389,7 @@ class Stateful_thread(threading.Thread):
 		return
 
 
-class Stateful_module(Generic_module):
+class Stateful_module(Generic_module.Generic_module):
 
 	module_name = "Stateful module to inherit"
 	module_configname = "NONE"
