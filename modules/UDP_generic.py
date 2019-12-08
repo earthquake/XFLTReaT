@@ -65,7 +65,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 	# start talking to the server
 	# do authentication or encryption first
 	def do_hello(self):
-		# TODO: maybe change this later to push some more info, not only the 
+		# TODO: maybe change this later to push some more info, not just the 
 		# private IP
 		message = socket.inet_aton(self.config.get("Global", "clientip"))
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_INIT+message, (self.server_tuple, None))

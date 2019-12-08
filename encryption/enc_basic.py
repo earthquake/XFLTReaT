@@ -165,8 +165,6 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 
 		client_public_key = public_numbers.public_key(default_backend())
 
-
-		# TODO: make a lookup client wrapper to hide differences
 		c = module.lookup_client_pub(additional_data)
 		c.get_encryption().set_shared_key(self.server_private_key.exchange(ec.ECDH(), client_public_key))
 
