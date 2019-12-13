@@ -259,13 +259,14 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 	def init(self, config, servermode):
 		try:
 			extended_nonce = os.urandom(4)*4
-			algorithm = algorithms.ChaCha20("0"*32, extended_nonce)
+			algorithm = algorithms.ChaCha20((0).to_bytes(32, byteorder='big'), extended_nonce)
 			cipher = Cipher(algorithm, mode=None, backend=default_backend())
 			decryptor = cipher.decryptor()
 		except UnsupportedAlgorithm:
 			common.internal_print("OpenSSL library is outdated. Please update.", -1)
 			return False
-		except:
+		except Exception as e:
+			print(e)
 			common.internal_print("Something went wrong with the cryptography engine. Most probably OpenSSL related.", -1)
 			return False
 
@@ -281,12 +282,12 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 				                                     serialization.PublicFormat.SubjectPublicKeyInfo)
 
 				p = open(self.server_public_key_file, "w+")
-				p.write(pubkey_ser)
+				p.write(str(pubkey_ser, 'ascii'))
 				p.close()
 
 				oldmask = os.umask(0o0366)
 				p = open(self.server_private_key_file, "w+")
-				p.write(privkey_ser)
+				p.write(str(privkey_ser, 'ascii'))
 				p.close()
 				os.umask(oldmask)
 
@@ -305,12 +306,12 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 
 			# load private and public keys from files
 			try:
-				self.server_public_key = serialization.load_pem_public_key(serialized_public, backend=default_backend())
+				self.server_public_key = serialization.load_pem_public_key(bytes(serialized_public, 'ascii'), backend=default_backend())
 			except:
 				common.internal_print("Error parsing '{0}' as a public key.".format(self.server_public_key_file), -1)
 				return False
 			try:
-				self.server_private_key = serialization.load_pem_private_key(serialized_private, password=None, backend=default_backend())
+				self.server_private_key = serialization.load_pem_private_key(bytes(serialized_private, 'ascii'), password=None, backend=default_backend())
 			except:
 				common.internal_print("Error parsing '{0}' as a private key.".format(self.server_private_key_file), -1)
 				return False

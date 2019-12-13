@@ -34,7 +34,7 @@ import struct
 import threading
 
 #local files
-import Stateful_module
+from modules import Stateful_module
 import encryption
 import client
 import common
@@ -245,7 +245,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 				rlist = [self.tunnel_r, self.comms_socket]
 			try:
 				readable, writable, exceptional = select.select(rlist, wlist, xlist, self.timeout)
-			except select.error, e:
+			except select.error as e:
 				break	
 			if self._stop:
 				self.comms_socket.close()
