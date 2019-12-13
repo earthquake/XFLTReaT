@@ -27,7 +27,7 @@ if "enc_none.py" in sys.argv[0]:
 	sys.exit(-1)
 
 import common
-import Generic_encryption_module
+from encryption import Generic_encryption_module
 
 class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 

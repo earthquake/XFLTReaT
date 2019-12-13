@@ -37,7 +37,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.exceptions import UnsupportedAlgorithm
 
 import common
-import Generic_encryption_module
+from encryption import Generic_encryption_module
 
 class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 	def __init__(self):
@@ -284,7 +284,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 				p.write(pubkey_ser)
 				p.close()
 
-				oldmask = os.umask(0366)
+				oldmask = os.umask(0o0366)
 				p = open(self.server_private_key_file, "w+")
 				p.write(privkey_ser)
 				p.close()

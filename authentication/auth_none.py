@@ -30,7 +30,7 @@ import socket
 import struct
 
 import common
-import Generic_authentication_module
+from authentication import Generic_authentication_module
 
 class Authentication_module(Generic_authentication_module.Generic_authentication_module):
 	def __init__(self):
