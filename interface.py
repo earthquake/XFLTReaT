@@ -185,8 +185,8 @@ class Interface():
 		ps = subprocess.Popen(["route", "add", "-net", rangeip, "netmask", netmask, "dev", dev], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			if not "File exists" in stderr:
-				common.internal_print("Error: adding client route: {0}".format(stderr), -1)
+			if not "File exists" in stderr.decode("ascii"):
+				common.internal_print("Error: adding client route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 
 		return
@@ -215,11 +215,11 @@ class Interface():
 		ps = subprocess.Popen(["route", "-n"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 
-		if stderr != "":
-			common.internal_print("Route error: {0}".format(stderr), -1)
+		if stderr.decode("ascii") != "":
+			common.internal_print("Route error: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
-		lines = stdout.split("\n")
+		lines = stdout.decode("ascii").split("\n")
 		default_route_number = 0
 		for line in lines:
 			if line[0:7] == "0.0.0.0":
@@ -241,7 +241,7 @@ class Interface():
 		ps = subprocess.Popen(["route", "-n"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 
-		lines = stdout.split("\n")
+		lines = stdout.decode("ascii").split("\n")
 		default_route_number = 0
 		for line in lines:
 			if line[0:7] == "0.0.0.0":
@@ -259,22 +259,22 @@ class Interface():
 		ps = subprocess.Popen(["route", "add", "-host", serverip, "gw", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			if not "File exists" in stderr:
-				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+			if not "File exists" in stderr.decode("ascii"):
+				common.internal_print("Error: adding server route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 
 		# delete original default route
 		ps = subprocess.Popen(["route", "delete", "default"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Error: deleting default route: {0}".format(stderr), -1)
+			common.internal_print("Error: deleting default route: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		# new default route set via VPN server
 		ps = subprocess.Popen(["route", "add", "default", "gw", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Error: adding new default route: {0}".format(stderr), -1)
+			common.internal_print("Error: adding new default route: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		return
@@ -284,14 +284,14 @@ class Interface():
 		ps = subprocess.Popen(["route", "delete", serverip, "gw", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Error: delete old route: {0}".format(stderr), -1)
+			common.internal_print("Error: delete old route: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		ps = subprocess.Popen(["route", "add", "-host", proxyip, "gw", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			if not "File exists" in stderr:
-				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+			if not "File exists" in stderr.decode("ascii"):
+				common.internal_print("Error: adding server route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 
 		return
@@ -301,14 +301,14 @@ class Interface():
 		ps = subprocess.Popen(["route", "delete", serverip, "gw", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Error: delete old route: {0}".format(stderr), -1)
+			common.internal_print("Error: delete old route: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		ps = subprocess.Popen(["route", "add", "default", "gw", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			if not "File exists" in stderr:
-				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+			if not "File exists" in stderr.decode("ascii"):
+				common.internal_print("Error: adding server route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 
 		return
@@ -318,7 +318,7 @@ class Interface():
 			ps = subprocess.Popen(["route", "add", "-net", "{0}/{1}".format(entry[0], entry[2]), "gw", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			(stdout, stderr) = ps.communicate()
 			if stderr:
-				common.internal_print("Error: add split route: {0}".format(stderr), -1)
+				common.internal_print("Error: add split route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 
 		return
@@ -369,7 +369,7 @@ class Interface():
 		import ctypes
 		import ctypes.util
 
-		self.iface_name = "\x00"*10
+		self.iface_name = b"\x00"*10
 		libc_name = ctypes.util.find_library('c')
 		libc = ctypes.CDLL(libc_name, use_errno=True)
 
@@ -394,12 +394,13 @@ class Interface():
 		if err < 0:
 			err = ctypes.get_errno()
 			raise OSError(err, os.strerror(err))
+		self.iface_name = self.iface_name.decode("ascii")
 
 		# setting flags on interface/fd
 		fcntl.fcntl(s, fcntl.F_SETFL, os.O_NONBLOCK)
 		fcntl.fcntl(s, fcntl.F_SETFD, fcntl.FD_CLOEXEC)
 
-		# saving the socket, otherwise it will be destroyed. with the iface
+		# saving the socket, otherwise it will be destroyed with the iface
 		self.MACOS_temp = s
 		return s.fileno()
 
@@ -409,12 +410,12 @@ class Interface():
 			16, socket.AF_INET, 0, struct.unpack('<L', socket.inet_pton(socket.AF_INET, ip))[0], 0, 0,
 			16, socket.AF_INET, 0, struct.unpack('<L', socket.inet_pton(socket.AF_INET, serverip))[0], 0, 0,
 			16, 0, 0, struct.unpack('<L', socket.inet_pton(socket.AF_INET, "255.255.255.255"))[0], 0, 0)
+
 		try:
 			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			fcntl.ioctl(sock, self.IOCTL_MACOSX_SIOCAIFADDR, ifr)
 		except Exception as e:
-			common.internal_print("Something went wrong with setting up the interface.", -1)
-			print(e)
+			common.internal_print("Something went wrong with setting up the interface: {0}".format(e), -1)
 			sys.exit(-1)
 
 		# adding new route for forwarding packets properly.
@@ -423,8 +424,8 @@ class Interface():
 		ps = subprocess.Popen(["route", "add", "-net", rangeip+"/"+netmask, serverip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			if not "File exists" in stderr:
-				common.internal_print("Error: adding client route: {0}".format(stderr), -1)
+			if not "File exists" in stderr.decode("ascii"):
+				common.internal_print("Error: adding client route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 
 		return
@@ -454,7 +455,7 @@ class Interface():
 		(stdout, stderr) = ps.communicate()
 
 		# is there a default gateway entry?
-		if "not in table" in stderr:
+		if "not in table" in stderr.decode("ascii"):
 			common.internal_print("No default route. Please set up your routing before executing the tool", -1)
 			sys.exit(-1)
 		# check for multiple default routes
@@ -473,11 +474,11 @@ class Interface():
 		(stdout, stderr) = ps.communicate()
 
 		# is there a default gateway entry?
-		if "not in table" in stderr:
+		if "not in table" in stderr.decode("ascii"):
 			common.internal_print("No default route. Please set up your routing before executing the tool", -1)
 			sys.exit(-1)
 
-		self.orig_default_gw = stdout.split("gateway: ")[1].split("\n")[0]
+		self.orig_default_gw = stdout.decode("ascii").split("gateway: ")[1].split("\n")[0]
 
 		# is it an ipv4 address?
 		if not common.is_ipv4(self.orig_default_gw):
@@ -487,20 +488,20 @@ class Interface():
 		ps = subprocess.Popen(["route", "add", "-net", serverip, self.orig_default_gw, "255.255.255.255"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			if not "File exists" in stderr:
-				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+			if not "File exists" in stderr.decode("ascii"):
+				common.internal_print("Error: adding server route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 
 		ps = subprocess.Popen(["route", "delete", "default"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Error: deleting default route: {0}".format(stderr), -1)
+			common.internal_print("Error: deleting default route: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		ps = subprocess.Popen(["route", "add", "default", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Error: adding new default route: {0}".format(stderr), -1)
+			common.internal_print("Error: adding new default route: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		'''
@@ -521,14 +522,14 @@ class Interface():
 		ps = subprocess.Popen(["route", "delete", serverip, self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Error: delete old route: {0}".format(stderr), -1)
+			common.internal_print("Error: delete old route: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		ps = subprocess.Popen(["route", "add", "-net", proxyip, self.orig_default_gw, "255.255.255.255"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			if not "File exists" in stderr:
-				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+			if not "File exists" in stderr.decode("ascii"):
+				common.internal_print("Error: adding server route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 		return
 
@@ -538,7 +539,7 @@ class Interface():
 		ps = subprocess.Popen(["route", "delete", serverip, self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Error: delete old route: {0}".format(stderr), -1)
+			common.internal_print("Error: delete old route: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		'''
@@ -553,15 +554,15 @@ class Interface():
 		ps = subprocess.Popen(["route", "delete", "default"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			if not "not in table" in stderr:
-				common.internal_print("Error: deleting default route: {0}".format(stderr), -1)
+			if not "not in table" in stderr.decode("ascii"):
+				common.internal_print("Error: deleting default route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 
 		ps = subprocess.Popen(["route", "add", "default", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			if not "File exists" in stderr:
-				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+			if not "File exists" in stderr.decode("ascii"):
+				common.internal_print("Error: adding server route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 
 		return
@@ -571,7 +572,7 @@ class Interface():
 			ps = subprocess.Popen(["route", "add", "{0}/{1}".format(entry[0], entry[2]), ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			(stdout, stderr) = ps.communicate()
 			if stderr:
-				common.internal_print("Error: adding new split route: {0}".format(stderr), -1)
+				common.internal_print("Error: adding new split route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 		return
 
@@ -634,11 +635,11 @@ class Interface():
 		(stdout, stderr) = ps.communicate()
 
 
-		if stderr != "":
-			common.internal_print("Show interfaces. netsh failed: {0}".format(stdout), -1)
+		if stderr.decode("ascii") != "":
+			common.internal_print("Show interfaces. netsh failed: {0}".format(stdout.decode("ascii")), -1)
 			sys.exit(-1)
 
-		for line in stdout.split("\n"):
+		for line in stdout.decode("ascii").split("\n"):
 			if iface_name in line:
 				i = 0
 				while line[i:i+1] == " ":
@@ -708,7 +709,7 @@ class Interface():
 				stderr=subprocess.PIPE)
 			(stdout, stderr) = ps.communicate()
 
-			if stderr != "":
+			if stderr.decode("ascii") != "":
 				common.internal_print("Cannot set IP. netsh failed: {0}".format(stdout), -1)
 				sys.exit(-1)
 
@@ -719,8 +720,8 @@ class Interface():
 				stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			(stdout, stderr) = ps.communicate()
 
-			if stderr != "":
-				common.internal_print("Cannot set IP. netsh failed: {0}".format(stdout), -1)
+			if stderr.decode("ascii") != "":
+				common.internal_print("Cannot set IP. netsh failed: {0}".format(stdout.decode("ascii")), -1)
 				sys.exit(-1)
 
 		return
@@ -732,7 +733,7 @@ class Interface():
 			"mtu={0}".format(mtu), "store=active"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 
-		if "Ok." not in stdout:
+		if "Ok." not in stdout.decode("ascii"):
 			common.internal_print("Cannot set MTU. netsh failed: {0}".format(stdout), -1)
 			sys.exit(-1)
 
@@ -753,12 +754,12 @@ class Interface():
 		ps = subprocess.Popen(["route", "-4", "PRINT", "0.0.0.0"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Checking default route failed: {0}".format(stderr), -1)
+			common.internal_print("Checking default route failed: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		# count default routes
 		default_routes = 0
-		for line in stdout[0:stdout.find("Persistent Routes:")].split("\n"):
+		for line in stdout.decode("ascii")[0:stdout.decode("ascii").find("Persistent Routes:")].split("\n"):
 			if "0.0.0.0" in line:
 				default_routes += 1
 
@@ -775,11 +776,11 @@ class Interface():
 		ps = subprocess.Popen(["route", "-4", "PRINT", "0.0.0.0"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Get default route failed: {0}".format(stderr), -1)
+			common.internal_print("Get default route failed: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		# parse and get default gw - no persistent routes
-		for line in stdout[0:stdout.find("Persistent Routes:")].split("\n"):
+		for line in stdout.decode("ascii")[0:stdout.decode("ascii").find("Persistent Routes:")].split("\n"):
 			if "0.0.0.0" in line:
 				elements = line.split(" ")
 				while "" in elements:
@@ -793,13 +794,13 @@ class Interface():
 		ps = subprocess.Popen(["route", "DELETE", "0.0.0.0", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Delete default route failed: {0}".format(stderr), -1)
+			common.internal_print("Delete default route failed: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		ps = subprocess.Popen(["route", "ADD", serverip, "MASK", "255.255.255.255", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Add route to server failed: {0}".format(stderr), -1)
+			common.internal_print("Add route to server failed: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		return
@@ -810,14 +811,14 @@ class Interface():
 		ps = subprocess.Popen(["route", "DELETE", serverip, self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Delete server route failed: {0}".format(stderr), -1)
+			common.internal_print("Delete server route failed: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		# add intermediate route
 		ps = subprocess.Popen(["route", "ADD", proxyip, "MASK", "255.255.255.255", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Add intermediate route failed: {0}".format(stderr), -1)
+			common.internal_print("Add intermediate route failed: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		return
@@ -828,19 +829,19 @@ class Interface():
 		ps = subprocess.Popen(["route", "DELETE", serverip, self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Delete server route failed: {0}".format(stderr), -1)
+			common.internal_print("Delete server route failed: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		ps = subprocess.Popen(["route", "-p", "DELETE", "0.0.0.0", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Delete default route failed: {0}".format(stderr), -1)
+			common.internal_print("Delete default route failed: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		ps = subprocess.Popen(["route", "ADD", "0.0.0.0", "MASK", "0.0.0.0", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Add original default route failed: {0}".format(stderr), -1)
+			common.internal_print("Add original default route failed: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		return
@@ -850,14 +851,14 @@ class Interface():
 		ps = subprocess.Popen(["route", "-p", "DELETE", "0.0.0.0", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Delete default route failed: {0}".format(stderr), -1)
+			common.internal_print("Delete default route failed: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		for entry in scope:
 			ps = subprocess.Popen(["route", "ADD", entry[0], "MASK", entry[1], ip, "IF", "{0}".format(iface_idx)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			(stdout, stderr) = ps.communicate()
 			if stderr:
-				common.internal_print("Add split route to server failed: {0}".format(stderr), -1)
+				common.internal_print("Add split route to server failed: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 		return
 
@@ -866,7 +867,7 @@ class Interface():
 			ps = subprocess.Popen(["route", "DELETE", entry[0], ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			(stdout, stderr) = ps.communicate()
 			if stderr:
-				common.internal_print("Delete split route to server failed: {0}".format(stderr), -1)
+				common.internal_print("Delete split route to server failed: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 		return
 
@@ -934,8 +935,8 @@ class Interface():
 		ps = subprocess.Popen(["route", "add", "-net", rangeip+"/"+netmask, serverip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			if not "File exists" in stderr:
-				common.internal_print("Error: adding client route: {0}".format(stderr), -1)
+			if not "File exists" in stderr.decode("ascii"):
+				common.internal_print("Error: adding client route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 
 		return
@@ -973,7 +974,7 @@ class Interface():
 		(stdout, stderr) = ps.communicate()
 
 		# is there a default gateway entry?
-		if "route has not been found" in stderr:
+		if "route has not been found" in stderr.decode("ascii"):
 			common.internal_print("No default route. Please set up your routing before executing the tool", -1)
 			sys.exit(-1)
 
@@ -985,11 +986,11 @@ class Interface():
 		(stdout, stderr) = ps.communicate()
 
 		# is there a default gateway entry?
-		if "route has not been found" in stderr:
+		if "route has not been found" in stderr.decode("ascii"):
 			common.internal_print("No default route. Please set up your routing before executing the tool", -1)
 			sys.exit(-1)
 
-		self.orig_default_gw = stdout.split("gateway: ")[1].split("\n")[0]
+		self.orig_default_gw = stdout.decode("ascii").split("gateway: ")[1].split("\n")[0]
 
 		# is it an ipv4 address?
 		if not common.is_ipv4(self.orig_default_gw):
@@ -999,20 +1000,20 @@ class Interface():
 		ps = subprocess.Popen(["route", "add", "-net", serverip, self.orig_default_gw, "255.255.255.255"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			if not "File exists" in stderr:
-				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+			if not "File exists" in stderr.decode("ascii"):
+				common.internal_print("Error: adding server route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 
 		ps = subprocess.Popen(["route", "delete", "default"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Error: deleting default route: {0}".format(stderr), -1)
+			common.internal_print("Error: deleting default route: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		ps = subprocess.Popen(["route", "add", "default", ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Error: adding new default route: {0}".format(stderr), -1)
+			common.internal_print("Error: adding new default route: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		return
@@ -1023,14 +1024,14 @@ class Interface():
 		ps = subprocess.Popen(["route", "delete", serverip+"/32", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Error: delete old route: {0}".format(stderr), -1)
+			common.internal_print("Error: delete old route: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		ps = subprocess.Popen(["route", "add", "-net", proxyip, self.orig_default_gw, "255.255.255.255"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			if not "File exists" in stderr:
-				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+			if not "File exists" in stderr.decode("ascii"):
+				common.internal_print("Error: adding server route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 		return
 
@@ -1040,14 +1041,14 @@ class Interface():
 		ps = subprocess.Popen(["route", "delete", serverip+"/32", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			common.internal_print("Error: delete old route: {0}".format(stderr), -1)
+			common.internal_print("Error: delete old route: {0}".format(stderr.decode("ascii")), -1)
 			sys.exit(-1)
 
 		ps = subprocess.Popen(["route", "add", "default", self.orig_default_gw], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		(stdout, stderr) = ps.communicate()
 		if stderr:
-			if not "File exists" in stderr:
-				common.internal_print("Error: adding server route: {0}".format(stderr), -1)
+			if not "File exists" in stderr.decode("ascii"):
+				common.internal_print("Error: adding server route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 
 		return
@@ -1057,7 +1058,7 @@ class Interface():
 			ps = subprocess.Popen(["route", "add", "{0}/{1}".format(entry[0], entry[2]), ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			(stdout, stderr) = ps.communicate()
 			if stderr:
-				common.internal_print("Error: adding new split route: {0}".format(stderr), -1)
+				common.internal_print("Error: adding new split route: {0}".format(stderr.decode("ascii")), -1)
 				sys.exit(-1)
 		return
 

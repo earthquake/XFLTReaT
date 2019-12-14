@@ -34,15 +34,15 @@ import re
 import platform
 import pkgutil
 
-DATA_CHANNEL_BYTE	 = "\x00"
-CONTROL_CHANNEL_BYTE = "\x80"
+DATA_CHANNEL_BYTE	 = b"\x00"
+CONTROL_CHANNEL_BYTE = b"\x80"
 
-CONTROL_CHECK 			= "XFLT>CHECK!"
-CONTROL_CHECK_RESULT 	= "XFLT>CHECK_RESULT"
-CONTROL_INIT 			= "XFLT>INIT!"
-CONTROL_INIT_DONE		= "XFLT>INIT_DONE"
-CONTROL_LOGOFF			= "XFLT>LOGOFF!"
-CONTROL_DUMMY_PACKET 	= "XFLT>DUMMY_PACKET"
+CONTROL_CHECK 			= b"XFLT>CHECK!"
+CONTROL_CHECK_RESULT 	= b"XFLT>CHECK_RESULT"
+CONTROL_INIT 			= b"XFLT>INIT!"
+CONTROL_INIT_DONE		= b"XFLT>INIT_DONE"
+CONTROL_LOGOFF			= b"XFLT>LOGOFF!"
+CONTROL_DUMMY_PACKET 	= b"XFLT>DUMMY_PACKET"
 
 
 # Multi Operating System support values
@@ -192,7 +192,7 @@ def check_router_settings(config):
 		# get value of forwarding with sysctl
 		fw_value = ctypes.c_int(-1)
 
-		err = libc.sysctlbyname("net.inet.ip.forwarding", ctypes.byref(fw_value), ctypes.byref(ctypes.c_uint(4)), None, 0)
+		err = libc.sysctlbyname("net.inet.ip.forwarding".encode('ascii'), ctypes.byref(fw_value), ctypes.byref(ctypes.c_uint(4)), None, 0)
 		if err < 0:
 			err = ctypes.get_errno()
 			internal_print("sysctl failed: {0} : {1}".format(err, os.strerror(err)), -1)
