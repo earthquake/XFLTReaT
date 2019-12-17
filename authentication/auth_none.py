@@ -41,9 +41,9 @@ class Authentication_module(Generic_authentication_module.Generic_authentication
 			# return value meanings: True  - module continues
 			#						 False - module thread terminates
 			# in case of Stateless modules, the whole module terminates if the return value is False
-			0  : ["XFLT>AUTH!", 		self.authentication_step_1, 1, True, False],
-			1  : ["XFLT>AUTH_OK", 		self.authentication_step_2_ok, 0, True, False],
-			2  : ["XFLT>AUTH_NOTOK", 	self.authentication_step_2_not_ok, 0, True, False, False]
+			0  : [b"XFLT>AUTH!", 		self.authentication_step_1, 1, True, False],
+			1  : [b"XFLT>AUTH_OK", 		self.authentication_step_2_ok, 0, True, False],
+			2  : [b"XFLT>AUTH_NOTOK", 	self.authentication_step_2_not_ok, 0, True, False, False]
 		}
 
 		self.client_step_count = 1

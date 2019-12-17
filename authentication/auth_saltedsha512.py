@@ -42,9 +42,9 @@ class Authentication_module(Generic_authentication_module.Generic_authentication
 			# return value meanings: True  - module continues
 			#						 False - module thread terminates
 			# in case of Stateless modules, the whole module terminates if the return value is False
-			0  : ["XFLT>AUTH!", 		self.authentication_step_1, 1, True, False, True],
-			1  : ["XFLT>AUTH_OK", 		self.authentication_step_2_ok, 0, True, False, False],
-			2  : ["XFLT>AUTH_NOTOK", 	self.authentication_step_2_not_ok, 0, True, False, False]
+			0  : [b"XFLT>AUTH!", 		self.authentication_step_1, 1, True, False, True],
+			1  : [b"XFLT>AUTH_OK", 		self.authentication_step_2_ok, 0, True, False, False],
+			2  : [b"XFLT>AUTH_NOTOK", 	self.authentication_step_2_not_ok, 0, True, False, False]
 		}
 
 		self.client_step_count = 1
@@ -73,7 +73,7 @@ class Authentication_module(Generic_authentication_module.Generic_authentication
 		rnd = struct.pack("<I", random.randint(0, 4294967295))
 		m = hashlib.sha512()
 		m.update(rnd)
-		m.update(self.key)
+		m.update(self.key.encode('ascii'))
 		ciphertext = m.digest()
 
 		return rnd+ciphertext
@@ -83,7 +83,7 @@ class Authentication_module(Generic_authentication_module.Generic_authentication
 		ciphertext = msg[4:68]
 		m = hashlib.sha512()
 		m.update(rnd)
-		m.update(self.key)
+		m.update(self.key.encode('ascii'))
 		if ciphertext == m.digest():
 			return True
 

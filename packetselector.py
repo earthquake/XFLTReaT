@@ -142,7 +142,7 @@ class PacketSelector(threading.Thread):
 					while True:
 						# dumb check, but seems to be working. The packet has 
 						# to be longer than 4 and it must be IPv4
-						if (len(message) < 4) or (message[0:1] != "\x45"): #Only care about IPv4
+						if (len(message) < 4) or (message[0:1] != b"\x45"): #Only care about IPv4
 							break
 						packetlen = struct.unpack(">H", message[2:4])[0]
 						if packetlen == 0:
@@ -199,7 +199,7 @@ class PacketSelector(threading.Thread):
 
 					if rc == win32event.WAIT_OBJECT_0:
 						# read happened, packet is in "message"
-						if (overlapped_read.InternalHigh < 4) or (message[0:1] != "\x45"): #Only care about IPv4
+						if (overlapped_read.InternalHigh < 4) or (message[0:1] != b"\x45"): #Only care about IPv4
 							# too small which should not happen or not IPv4, so we just drop it.
 							continue
 

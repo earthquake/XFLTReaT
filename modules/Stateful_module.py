@@ -118,7 +118,7 @@ class Stateful_thread(threading.Thread):
 
 	# on MacOS(X) utun, all packets needs to be prefixed with 4 specific bytes
 	def packet_writer_mac(self, packet):
-		packet = "\x00\x00\x00\x02"+packet
+		packet = b"\x00\x00\x00\x02"+packet
 		os.write(self.tunnel_w, packet)
 
 	# default packet writer for Linux

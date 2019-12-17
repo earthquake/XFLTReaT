@@ -48,11 +48,11 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 			# return value meanings: True  - module continues
 			#						 False - module thread terminates
 			# in case of Stateless modules, the whole module terminates if the return value is False
-			0  : ["XFLT>ECDHd1", 	self.encryption_step_1, 1, True, False, True],
-			1  : ["XFLT>ECDHd2", 	self.encryption_step_2, 0, True, False, False],
-			2  : ["XFLT>ECDHd3", 	self.encryption_step_3, 1, True, False, True],
-			3  : ["XFLT>ECDHd4", 	self.encryption_step_4, 0, True, False, False],
-			4  : ["XFLT>ECDHd5", 	self.encryption_step_5, 1, True, False, True],
+			0  : [b"XFLT>ECDHd1", 	self.encryption_step_1, 1, True, False, True],
+			1  : [b"XFLT>ECDHd2", 	self.encryption_step_2, 0, True, False, False],
+			2  : [b"XFLT>ECDHd3", 	self.encryption_step_3, 1, True, False, True],
+			3  : [b"XFLT>ECDHd4", 	self.encryption_step_4, 0, True, False, False],
+			4  : [b"XFLT>ECDHd5", 	self.encryption_step_5, 1, True, False, True],
 		}
 
 		self.client_step_count = 2
@@ -103,7 +103,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 			common.internal_print("Server's key fingerprint is SHA256: {0}".format(base64.b64encode(pubkey_hash)), 1)
 			answer = ""
 			while (answer != "yes") and (answer != "no"):
-				answer = raw_input("Are you sure you want to continue connecting? (yes/no) ")
+				answer = input("Are you sure you want to continue connecting? (yes/no) ")
 			if answer == "yes":
 				if not self.add_fingerprint(ip, pubkey_hash):
 					common.internal_print("Error opening known_hosts file.", -1)
@@ -117,7 +117,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 			common.internal_print("Exiting...", -1)
 			return module.cmh_struct[cm][4+module.is_caller_stateless()]
 		try:
-			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+server_public_key_stream)
+			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, b"\x04"+server_public_key_stream)
 		except:
 			common.internal_print("Erroneous key received from the server. Are you sure you are using the same settings on both sides?", -1)
 			return module.cmh_struct[cm][4+module.is_caller_stateless()]
@@ -143,7 +143,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 	def encryption_step_3(self, module, message, additional_data, cm):
 		client_public_key_stream = message[len(self.cmh_struct_encryption[2][0]):]
 		try:
-			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+client_public_key_stream)
+			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, b"\x04"+client_public_key_stream)
 		except:
 			common.internal_print("Erroneous key received from the client. Are you sure you are using the same settings on both sides?", -1)
 			return module.cmh_struct[cm][4+module.is_caller_stateless()]
@@ -179,7 +179,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		server_ephemeral_public_key_stream = message[len(self.cmh_struct_encryption[3][0]):]
 
 		try:
-			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+server_ephemeral_public_key_stream)
+			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, b"\x04"+server_ephemeral_public_key_stream)
 		except:
 			common.internal_print("Erroneous key received from the server. Are you sure you are using the same settings on both sides?", -1)
 			return module.cmh_struct[cm][4+module.is_caller_stateless()]
@@ -211,7 +211,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		c = module.lookup_client_pub(additional_data)
 
 		try:
-			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, "\x04"+client_ephemeral_public)
+			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, b"\x04"+client_ephemeral_public)
 		except:
 			common.internal_print("Erroneous key received from the client. Are you sure you are using the same settings on both sides?", -1)
 			return module.cmh_struct[cm][4+module.is_caller_stateless()]

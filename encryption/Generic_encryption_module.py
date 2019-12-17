@@ -42,7 +42,7 @@ class Generic_encryption_module():
 	# add fingerprint to the known_hosts file
 	def add_fingerprint(self, remoteserverip, pubkey_hash):
 		f = open("misc/known_hosts", "a+")
-		f.write(remoteserverip+";"+pubkey_hash+"\n")
+		f.write(remoteserverip+";"+pubkey_hash.decode('ascii')+"\n")
 		f.close()
 
 		return True
@@ -58,7 +58,7 @@ class Generic_encryption_module():
 		f = open("misc/known_hosts", "r")
 		for line in f.readlines():
 			line = line.replace("\r", "").replace("\n", "")
-			if line == remoteserverip+";"+pubkey_hash:
+			if line == remoteserverip+";"+pubkey_hash.decode('ascii'):
 				# found and trusted
 				return 0
 			if line.split(";")[0] == remoteserverip:

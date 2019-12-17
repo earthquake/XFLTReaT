@@ -57,7 +57,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 		self.module_name = module_name
 		self.check_result = None
 		self.timeout = 3.0
-		self.partial_message = ""
+		self.partial_message = b""
 		self.module_short = "TCP"
 
 		self.client = None
@@ -111,7 +111,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 			if len(message) >= length:
 				messages.append(self.transform(self.encryption, message[2:length], 0))
 				common.internal_print("{0} read: {1}".format(self.module_short, len(messages[len(messages)-1])), 0, self.verbosity, common.DEBUG)
-				self.partial_message = ""
+				self.partial_message = b""
 				message = message[length:]
 			else:
 				self.partial_message = message
@@ -219,7 +219,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 					if rc == 1:
 						# pipe/tunnel got signalled
 						not_reading_already = True
-						if (overlapped_pipe.InternalHigh < 4) or (message_readfile[0:1] != "\x45"): #Only care about IPv4
+						if (overlapped_pipe.InternalHigh < 4) or (message_readfile[0:1] != b"\x45"): #Only care about IPv4
 							# too small which should not happen or not IPv4, so we just drop it.
 							continue
 
@@ -254,9 +254,11 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 				for s in readable:
 					if (s is self.tunnel_r) and not self._stop:
 						message = self.packet_reader(self.tunnel_r, True, self.serverorclient)
+
 						while True:
-							if (len(message) < 4) or (message[0:1] != "\x45"): #Only care about IPv4
+							if (len(message) < 4) or (message[0:1] != b"\x45"): #Only care about IPv4
 								break
+
 							packetlen = struct.unpack(">H", message[2:4])[0] # IP Total length
 							if packetlen > len(message):
 								message += self.packet_reader(self.tunnel_r, False, self.serverorclient)
