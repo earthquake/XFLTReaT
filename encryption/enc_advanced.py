@@ -126,7 +126,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 
 		client_private_key = ec.generate_private_key(self.curve, default_backend())
 
-		hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt="IRatherEatMaldonThanHimalayan", info=None, backend=default_backend())
+		hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=b"IRatherEatMaldonThanHimalayan", info=None, backend=default_backend())
 		module.encryption.set_shared_key(hkdf.derive(client_private_key.exchange(ec.ECDH(), server_public_key)))
 
 		pbk = client_private_key.public_key().public_numbers().encode_point()[1:]
@@ -152,7 +152,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 
 		c = module.lookup_client_pub(additional_data)
 
-		hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt="IRatherEatMaldonThanHimalayan", info=None, backend=default_backend())
+		hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=b"IRatherEatMaldonThanHimalayan", info=None, backend=default_backend())
 		c.get_encryption().set_shared_key(hkdf.derive(self.server_private_key.exchange(ec.ECDH(), client_public_key)))
 
 		server_ephemeral_private_key = ec.generate_private_key(self.curve, default_backend())
@@ -195,7 +195,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		pbk = client_ephemeral_public_key.public_numbers().encode_point()[1:]
 		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_encryption[4][0]+pbk, module.modify_additional_data(additional_data, 0))
 
-		hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt="IRatherEatMaldonThanHimalayan", info=None, backend=default_backend())
+		hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=b"IRatherEatMaldonThanHimalayan", info=None, backend=default_backend())
 		module.encryption.set_shared_key(hkdf.derive(client_ephemeral_private_key.exchange(ec.ECDH(), server_ephemeral_public_key)))
 		module.post_encryption_client(message[len(self.cmh_struct_encryption[3][0]):], additional_data)
 
@@ -219,7 +219,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		client_ephemeral_public_key = public_numbers.public_key(default_backend())
 
 		server_ephemeral_private_key = c.get_encryption().get_private_key()
-		hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt="IRatherEatMaldonThanHimalayan", info=None, backend=default_backend())
+		hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=b"IRatherEatMaldonThanHimalayan", info=None, backend=default_backend())
 		c.get_encryption().set_shared_key(hkdf.derive(server_ephemeral_private_key.exchange(ec.ECDH(), client_ephemeral_public_key)))
 
 		module.post_encryption_server(message[len(self.cmh_struct_encryption[4][0]):], additional_data)
@@ -248,10 +248,10 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 	def init(self, config, servermode):
 		try:
 			chacha = ChaCha20Poly1305((0).to_bytes(32, byteorder='big'))
-		except:
+		except UnsupportedAlgorithm:
 			common.internal_print("OpenSSL library is outdated. Please update.", -1)
 			return False
-		except:
+		except Exception as e:
 			common.internal_print("Something went wrong with the cryptography engine. Most probably OpenSSL related.", -1)
 			return False
 
