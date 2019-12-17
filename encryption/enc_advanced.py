@@ -78,7 +78,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 	# verification purposes + key exchange
 	def encryption_step_1(self, module, message, additional_data, cm):
 		common.internal_print("Encryption initialization started: {0}".format(module.module_name))
-		pbk = self.server_public_key.public_numbers().encode_point()[1:]
+		pbk = self.server_public_key.public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)[1:]
 		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_encryption[1][0]+pbk, module.modify_additional_data(additional_data, 1))
 
 		return module.cmh_struct[cm][3]
@@ -117,9 +117,9 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 			common.internal_print("Exiting...", -1)
 			return module.cmh_struct[cm][4+module.is_caller_stateless()]
 		try:
-			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, b"\x04"+server_public_key_stream)
-		except:
-			common.internal_print("Erroneous key received from the server. Are you sure you are using the same settings on both sides?", -1)
+			public_numbers = ec.EllipticCurvePublicKey.from_encoded_point(self.curve, b"\x04"+server_public_key_stream).public_numbers()
+		except Exception as e:
+			common.internal_print("Erroneous key received from the server. Are you sure you are using the same settings on both sides? {0}".format(e), -1)
 			return module.cmh_struct[cm][4+module.is_caller_stateless()]
 
 		server_public_key = public_numbers.public_key(default_backend())
@@ -129,7 +129,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=b"IRatherEatMaldonThanHimalayan", info=None, backend=default_backend())
 		module.encryption.set_shared_key(hkdf.derive(client_private_key.exchange(ec.ECDH(), server_public_key)))
 
-		pbk = client_private_key.public_key().public_numbers().encode_point()[1:]
+		pbk = client_private_key.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)[1:]
 		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_encryption[2][0]+pbk, module.modify_additional_data(additional_data, 0))
 
 		module.encryption.set_encrypted(True)
@@ -143,9 +143,9 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 	def encryption_step_3(self, module, message, additional_data, cm):
 		client_public_key_stream = message[len(self.cmh_struct_encryption[2][0]):]
 		try:
-			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, b"\x04"+client_public_key_stream)
-		except:
-			common.internal_print("Erroneous key received from the client. Are you sure you are using the same settings on both sides?", -1)
+			public_numbers = ec.EllipticCurvePublicKey.from_encoded_point(self.curve, b"\x04"+client_public_key_stream).public_numbers()
+		except Exception as e:
+			common.internal_print("Erroneous key received from the client. Are you sure you are using the same settings on both sides? {0}".format(e), -1)
 			return module.cmh_struct[cm][4+module.is_caller_stateless()]
 
 		client_public_key = public_numbers.public_key(default_backend())
@@ -164,7 +164,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 
 		c.get_encryption().set_encrypted(True)
 
-		pbk = server_ephemeral_public_key.public_numbers().encode_point()[1:]
+		pbk = server_ephemeral_public_key.public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)[1:]
 		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_encryption[3][0]+pbk, module.modify_additional_data(additional_data, 1))
 
 		return module.cmh_struct[cm][3]
@@ -179,9 +179,9 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		server_ephemeral_public_key_stream = message[len(self.cmh_struct_encryption[3][0]):]
 
 		try:
-			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, b"\x04"+server_ephemeral_public_key_stream)
-		except:
-			common.internal_print("Erroneous key received from the server. Are you sure you are using the same settings on both sides?", -1)
+			public_numbers = ec.EllipticCurvePublicKey.from_encoded_point(self.curve, b"\x04"+server_ephemeral_public_key_stream).public_numbers()
+		except Exception as e:
+			common.internal_print("Erroneous key received from the server. Are you sure you are using the same settings on both sides? {0}".format(e), -1)
 			return module.cmh_struct[cm][4+module.is_caller_stateless()]
 
 		server_ephemeral_public_key = public_numbers.public_key(default_backend())
@@ -192,7 +192,7 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		module.encryption.set_private_key(client_ephemeral_private_key)
 		module.encryption.set_public_key(client_ephemeral_public_key)
 
-		pbk = client_ephemeral_public_key.public_numbers().encode_point()[1:]
+		pbk = client_ephemeral_public_key.public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)[1:]
 		module.send(common.CONTROL_CHANNEL_BYTE, self.cmh_struct_encryption[4][0]+pbk, module.modify_additional_data(additional_data, 0))
 
 		hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=b"IRatherEatMaldonThanHimalayan", info=None, backend=default_backend())
@@ -211,9 +211,9 @@ class Encryption_module(Generic_encryption_module.Generic_encryption_module):
 		c = module.lookup_client_pub(additional_data)
 
 		try:
-			public_numbers = ec.EllipticCurvePublicNumbers.from_encoded_point(self.curve, b"\x04"+client_ephemeral_public)
-		except:
-			common.internal_print("Erroneous key received from the client. Are you sure you are using the same settings on both sides?", -1)
+			public_numbers = ec.EllipticCurvePublicKey.from_encoded_point(self.curve, b"\x04"+client_ephemeral_public).public_numbers()
+		except Exception as e:
+			common.internal_print("Erroneous key received from the client. Are you sure you are using the same settings on both sides? {0}".format(e), -1)
 			return module.cmh_struct[cm][4+module.is_caller_stateless()]
 
 		client_ephemeral_public_key = public_numbers.public_key(default_backend())

@@ -1,2 +1,2 @@
 pywin32
-cryptography>=2.2.2
+cryptography>=2.8
