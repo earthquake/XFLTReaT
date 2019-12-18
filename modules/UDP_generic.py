@@ -34,7 +34,7 @@ import struct
 import threading
 
 #local files
-import Stateless_module
+from modules import Stateless_module
 import encryption
 import client
 import common
@@ -130,10 +130,10 @@ class UDP_generic(Stateless_module.Stateless_module):
 				message = message[length:]
 			else:
 				#debug
-				print "size did not match"
-				print "len(message): {0}".format(len(message))
-				print "length: {0}".format(length)
-				print "message: {0}".format(message)
+				print("size did not match")
+				print("len(message): {0}".format(len(message)))
+				print("length: {0}".format(length))
+				print("message: {0}".format(message))
 
 			if len(message) == 0:
 				return messages
@@ -205,7 +205,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 					if rc > 0:
 						# the tunnel or one of the mailslots got signalled
 						self.ulist.append(rc)
-						if (self.olist[rc].InternalHigh < 4) or (self.mlist[rc][0:1] != "\x45"): #Only care about IPv4
+						if (self.olist[rc].InternalHigh < 4) or (self.mlist[rc][0:1] != b"\x45"): #Only care about IPv4
 							continue
 
 						readytogo = self.mlist[rc][0:self.olist[rc].InternalHigh]
@@ -270,8 +270,8 @@ class UDP_generic(Stateless_module.Stateless_module):
 			try:
 				readable, writable, exceptional = select.select(self.rlist, wlist, xlist, self.timeout)
 			except select.error as e:
-				common.internal_print("select.error: %r".format(e), -1)
- 				break
+				common.internal_print("select.error: {0}".format(e), -1)
+				break
 
 			if (not readable) and is_check:
 				raise socket.timeout
@@ -280,7 +280,7 @@ class UDP_generic(Stateless_module.Stateless_module):
 					if (s in self.rlist) and not (s is self.comms_socket):
 						message = self.packet_reader(s, True, self.serverorclient)
 						while True:
-							if (len(message) < 4) or (message[0:1] != "\x45"): #Only care about IPv4
+							if (len(message) < 4) or (message[0:1] != b"\x45"): #Only care about IPv4
 								break
 							packetlen = struct.unpack(">H", message[2:4])[0] # IP Total length
 							if packetlen > len(message):
@@ -334,8 +334,8 @@ class UDP_generic(Stateless_module.Stateless_module):
 				if self.serverorclient:
 					self.comms_socket.close()
 				break
-			except:
-				print("another error")
+			except Exception as e:
+				print("communication_unix another error: {0}".format(e))
 				raise
 
 		return
