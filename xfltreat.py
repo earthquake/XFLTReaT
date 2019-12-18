@@ -71,12 +71,12 @@ class XFLTReaT:
 	# nicest banner ever.
 	def banner(self):
 		print(""\
-			",--.   ,--.,------.,--.,--------.,------.                ,--------. \n"\
-			" \  `.'  / |  .---'|  |'--.  .--'|  .--. ' ,---.  ,--,--.'--.  .--' \n"\
-			"  .'    \  |  `--, |  |   |  |   |  '--'.'| .-. :' ,-.  |   |  |    \n"\
-			" /  .'.  \ |  |`   |  '--.|  |   |  |\  \ \   --.\ '-'  |   |  |    \n"\
-			"'--'   '--'`--'    `-----'`--'   `--' '--' `----' `--`--'   `--'    \n"\
-			"Balazs Bucsay [[@xoreipeip]]\n")
+			",--.   ,--.,------.,--.,--------.,------.                ,--------. _______\n"\
+			" \  `.'  / |  .---'|  |'--.  .--'|  .--. ' ,---.  ,--,--.'--.  .--' \_____ \ \n"\
+			"  .'    \  |  `--, |  |   |  |   |  '--'.'| .-. :' ,-.  |   |  |     _(__  < \n"\
+			" /  .'.  \ |  |`   |  '--.|  |   |  |\  \ \   --.\ '-'  |   |  |    /       \ \n"\
+			"'--'   '--'`--'    `-----'`--'   `--' '--' `----' `--`--'   `--'   /______  / \n"\
+			"Balazs Bucsay [[@xoreipeip]]                                              \/ \n")
 		return
 
 	def __init__(self):
@@ -100,6 +100,9 @@ class XFLTReaT:
 
 	def run(self, argv):
 		self.banner()
+		if sys.version_info <= (3,0):
+			common.internal_print("Python 3 compatible version of XFLTReaT, please use the proper version.", -1)
+			sys.exit(-1)
 		try:
 			opts, args = getopt.getopt(argv, self.short, self.long)
 		except getopt.GetoptError:
