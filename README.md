@@ -36,7 +36,7 @@ For more information click [HERE](https://github.com/earthquake/XFLTReaT/wiki/Th
 * Enjoy
 
 ### A few things to note ###
-* Python 2.7
+* Python 3.x (tested with 3.7)
 * root/Administrator privileges are required
 
 ### DISCLAMER ###
