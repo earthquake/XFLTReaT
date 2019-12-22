@@ -74,7 +74,7 @@ class ICMP_Client(client.Client):
 		self.ICMP_received_sequence = -1
 		self.ICMP_sent_sequence = -1
 		#Queue
-		self.q = queue.queue()
+		self.q = queue.Queue()
 
 
 	#QUEUING
