@@ -35,8 +35,8 @@ import struct
 import threading
 
 #local files
-import Stateful_module
-import TCP_generic
+from modules import Stateful_module
+from modules import TCP_generic
 import client
 import common
 

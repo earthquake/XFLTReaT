@@ -288,7 +288,7 @@ class TCP_generic_thread(Stateful_module.Stateful_thread):
 								except Exception as e:
 									print(e)
 
-			except (socket.error, OSError, IOError):
+			except (socket.error, OSError, IOError) as e:
 				if self.serverorclient:
 					common.internal_print("Client lost. Closing down thread.", -1)
 					self.cleanup()
