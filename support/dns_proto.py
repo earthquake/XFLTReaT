@@ -211,7 +211,7 @@ class DNS_Queue:
 
 class DNS_common():
 	def __init__(self):
-		self.userid_alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+		self.userid_alphabet = b"abcdefghijklmnopqrstuvwxyz0123456789"
 
 	#def create_fragment_header(self, channel_bit, userid, packet_num, fragment_num, last_fragment):
 	def create_fragment_header(self, channel_bit, packet_num, fragment_num, last_fragment):
@@ -249,14 +249,15 @@ class DNS_common():
 
 	def get_character_from_userid(self, userid):
 		if userid < len(self.userid_alphabet):
-			return self.userid_alphabet[userid]
+			return bytes([self.userid_alphabet[userid]])
 
-		return self.userid_alphabet[0]
+		return bytes([self.userid_alphabet[0]])
 
 	def get_userid_from_character(self, userid):
 		for i in range(0, len(self.userid_alphabet)):
-			if self.userid_alphabet[i] == userid:
+			if self.userid_alphabet[i:i+1] == userid:
 				return i
+
 		return -1
 
 	def get_userid_length(self):
@@ -350,19 +351,19 @@ class DNS_common():
 			if lines[i][0:1] == " ":
 				splitted = lines[i].split(" ")
 				if splitted[2] == "MX":
-					zone.append([splitted[2], "", splitted[3], splitted[4]])
+					zone.append([splitted[2], "", splitted[3].encode('ascii'), splitted[4].encode('ascii')])
 				else:
-					zone.append([splitted[2], "", splitted[3]])
+					zone.append([splitted[2], "", splitted[3].encode('ascii')])
 
 				i += 1
 				continue
 
 			splitted = lines[i].split(" ")
-			zone.append([splitted[2], splitted[0], splitted[3]])
+			zone.append([splitted[2], splitted[0].encode('ascii'), splitted[3].encode('ascii')])
 			i += 1
 			continue
 
-		return (origin, ttl, zone)
+		return (origin.encode('ascii'), ttl, zone)
 
 
 class DNS_Proto():
@@ -487,16 +488,16 @@ class DNS_Proto():
 		return data
 
 	def pack_record_hostname(self, data):
-		hostname = ""
+		hostname = b""
 		for j in range(0,int(math.ceil(float(len(data))/63.0))):
-			hostname += data[j*63:(j+1)*63]+"."
+			hostname += data[j*63:(j+1)*63]+b"."
 
 		return hostname
 
 	def unpack_record_hostname(self, data):
-		hostname = self.hostnamebin_to_hostname(data)[1].replace(".", "")
+		hostname = self.hostnamebin_to_hostname(data)[1].replace(b".", b"")
 
-		return hostname.replace(".", "")
+		return hostname.replace(b".", b"")
 
 	def calc_max_throughput_A(self, max_length, hostname, overhead, encoding_class):
 		# max - len("hostname.") - 1 - overhead - plus dots
@@ -511,15 +512,15 @@ class DNS_Proto():
 
 	def build_record_A(self, record):
 		additional_record_num = 0
-		additional_records = ""
+		additional_records = b""
 		answer_num = 1
-		answers = struct.pack(">HHHIH", 0xc00c, 1, 1, 5, 4) + socket.inet_aton(record[2]) 
+		answers = struct.pack(">HHHIH", 0xc00c, 1, 1, 5, 4) + socket.inet_aton(record[2].decode('ascii')) 
 
 		return (answer_num, answers, additional_record_num, additional_records)
 
 	def build_record_NS(self, record):
 		additional_record_num = 0
-		additional_records = ""
+		additional_records = b""
 		compress_hostname = self.hostname_to_hostnamebin(record[2])
 
 		answer_num = 1
@@ -544,7 +545,7 @@ class DNS_Proto():
 	def build_record_CNAME(self, record):
 		compress_hostname = self.hostname_to_hostnamebin(record[2])
 		additional_record_num = 0
-		additional_records = ""
+		additional_records = b""
 		answer_num = 1
 		answers = struct.pack(">HHHIH", 0xc00c, 5, 1, 5, len(compress_hostname)) + compress_hostname
 
@@ -554,7 +555,7 @@ class DNS_Proto():
 	def build_record_ANY(self, record):
 		compress_hostname = self.hostname_to_hostnamebin(record[2])
 		additional_record_num = 0
-		additional_records = ""
+		additional_records = b""
 
 		answer_num = 2
 		answers =  struct.pack(">HHHIH", 0xc00c, 5, 1, 5, len(compress_hostname)) + compress_hostname
@@ -565,7 +566,7 @@ class DNS_Proto():
 	def build_record_SOA(self, record):
 		compress_hostname = self.hostname_to_hostnamebin(record[2])
 		additional_record_num = 0
-		additional_records = ""
+		additional_records = b""
 
 		answer_num = 1
 		#data = self.hostname_to_hostnamebin(record[2]) + self.hostname_to_hostnamebin(record[3]) + struct.pack(">IIIII", record[4], record[5], record[6], record[7], record[8])
@@ -577,7 +578,7 @@ class DNS_Proto():
 
 	def build_record_NULL(self, record):
 		additional_record_num = 0
-		additional_records = ""
+		additional_records = b""
 
 		answer_num = 1
 
@@ -587,7 +588,7 @@ class DNS_Proto():
 
 	def build_record_PRIVATE(self, record):
 		additional_record_num = 0
-		additional_records = ""
+		additional_records = b""
 
 		answer_num = 1
 
@@ -628,21 +629,22 @@ class DNS_Proto():
 		return None
 
 	def hostname_to_hostnamebin(self, hostname):
-		if hostname[len(hostname)-1:len(hostname)] != ".":
-			hostname += "."
+		if hostname[len(hostname)-1:len(hostname)] != b".":
+			hostname += b"."
 		i = 0
 
-		hostnamebin = ""
-		while not hostname[i:].find(".") == -1:
-			hostnamebin += struct.pack("B", hostname[i:].find(".")) + hostname[i:i+hostname[i:].find(".")]
-			i = i + hostname[i:].find(".")+1
+		hostnamebin = b""
+		while not hostname[i:].find(b".") == -1:
+			hostnamebin += struct.pack("B", hostname[i:].find(b"."))
+			hostnamebin += hostname[i:i+hostname[i:].find(b".")]
+			i = i + hostname[i:].find(b".")+1
 
-		hostnamebin += "\x00"
+		hostnamebin += b"\x00"
 
 		return hostnamebin
 
 	def hostnamebin_to_hostname(self, hostnamebin):
-		hostname = ""
+		hostname = b""
 		i = 0
 		length = 0
 
@@ -655,7 +657,7 @@ class DNS_Proto():
 				if l == 0:
 					length += 1
 					break
-				hostname += hostnamebin[i+1:i+1+l] + "."
+				hostname += hostnamebin[i+1:i+1+l] + b"."
 				length += l + 1
 				i = i + l + 1
 			else:
@@ -692,17 +694,17 @@ class DNS_Proto():
 		if record == None:
 			flag = 0x8503 # 1000 0100 0000 0011
 			answer_num = 0
-			answers = ""
+			answers = b""
 			additional_record_num = 0
-			additional_records = ""
+			additional_records = b""
 		else:
 			flag = 0x8500 #	1000 0100 0000 0000
 			RRtype = self.reverse_RR_type(record[0])
 			if RRtype[1] == None:
 				answer_num = 0
-				answers = ""
+				answers = b""
 				additional_record_num = 0
-				additional_records = ""
+				additional_records = b""
 			else:
 				answer_num = 1
 				(answer_num, answers, additional_record_num, additional_records) = RRtype[1](record)
@@ -720,7 +722,7 @@ class DNS_Proto():
 
 
 	def parse_dns(self, msg, hostname):
-		rdata = ""
+		rdata = b""
 		transaction_id = struct.unpack(">H",msg[0:2])[0]
 		flags = struct.unpack(">H",msg[2:4])[0]
 		questions = struct.unpack(">H",msg[4:6])[0]
@@ -740,7 +742,7 @@ class DNS_Proto():
 				return (None, None, None, None, None, None, None, 6)
 
 			if question_hostname == hostname:
-				short_hostname = ""
+				short_hostname = b""
 			else:
 				short_hostname = question_hostname[0:len(question_hostname)-len(hostname)-1]
 

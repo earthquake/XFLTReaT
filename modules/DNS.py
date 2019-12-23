@@ -40,7 +40,7 @@ import string
 import binascii
 
 #local files
-import UDP_generic
+from modules import UDP_generic
 from interface import Interface
 import client
 import common
@@ -85,12 +85,12 @@ class DNS(UDP_generic.UDP_generic):
 		self.settings = None
 
 		# autotune match string, length matters because it will be always base32
-		self.CONTROL_AUTOTUNE = "XFLT>ATN"
-		self.CONTROL_AUTOTUNE_CLIENT = "XFLT>ATC"
-		self.CONTROL_TUNEME = "XFLT>TNM"
+		self.CONTROL_AUTOTUNE = b"XFLT>ATN"
+		self.CONTROL_AUTOTUNE_CLIENT = b"XFLT>ATC"
+		self.CONTROL_TUNEME = b"XFLT>TNM"
 
-		self.direct_check = "XFLT>DIRECT"
-		self.direct_result = "XFLT>DIRECT_YEPP"
+		self.direct_check = b"XFLT>DIRECT"
+		self.direct_result = b"XFLT>DIRECT_YEPP"
 
 		# adding two DNS specific control message handler
 		self.cmh_struct[len(self.cmh_struct)] = [self.CONTROL_AUTOTUNE,		self.cmh_autotune, 1, True, True]
@@ -138,7 +138,9 @@ class DNS(UDP_generic.UDP_generic):
 	# autotune control message handler
 	# this handler answers to the tune requests to find the best bandwidth
 	def cmh_autotune(self, module, message, additional_data, cm):
+		print(message)
 		message = message[len(self.CONTROL_AUTOTUNE)+2:]
+		print(message)
 		# get tune type, requested record type, length and encoding for crafting the answer
 		(query_type, RRtype, length, encode_class) = struct.unpack("<BHHH", message[0:7])
 		if self.DNS_proto.get_RR_type(RRtype)[0] == None:
@@ -148,10 +150,10 @@ class DNS(UDP_generic.UDP_generic):
 		additional_data = additional_data + (True, self.download_encoding_list[encode_class], self.DNS_proto.get_RR_type(RRtype)[0])		
 		if (query_type == 0) or (query_type == 3):
 			# record && downstream length discovery
-			message = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(length))
+			message = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(length)).encode('ascii')
 		if query_type == 1:
 			# A record name length discovery
-			message = struct.pack("<i", binascii.crc32(message[7:]))
+			message = struct.pack("<I", binascii.crc32(message[7:]))
 		if query_type == 2:
 			# checking download encoding, echoing back request payload
 			message = message[7:]
@@ -230,21 +232,26 @@ class DNS(UDP_generic.UDP_generic):
 			payload = self.DNS_proto.reverse_RR_type(upload_record_type)[2](self.DNS_common.get_character_from_userid(0)+message)
 
 		# 1 - content check with the most famous cryptographically secure hash algorithm (pun intended)
+		print(0)
 		if tune_type == 1:
 			cap = self.DNS_proto.reverse_RR_type(upload_record_type)[4](upload_length-len(prefix), self.hostname, 0, self.upload_encoding_list[upload_encoding])
-
-			random_message = ''.join(random.choice(''.join(chr(x) for x in range(128,255))) for _ in range(cap - len(second_prefix)))
-			crc = struct.pack("<i", binascii.crc32(random_message))
+			
+			random_message = bytearray(random.choice(range(128,255)) for _ in range(cap - len(second_prefix)))
+			crc = struct.pack("<I", binascii.crc32(random_message))
 			message = prefix+self.upload_encoding_list[upload_encoding].encode(second_prefix+random_message)
+			print(message)
 			payload = self.DNS_proto.reverse_RR_type(upload_record_type)[2](self.DNS_common.get_character_from_userid(0)+message)
 
 		# 2 - content check for encoding
+		print(1)
 		if tune_type == 2:
 			# BIND9 fails to forward response if: Plaintext + pre+postfixed by "."
-			random_message = "."+''.join(random.choice(''.join(chr(x) for x in range(0,255))) for _ in range(upload_length-2))+"."
+			#random_message = "."+''.join(random.choice(''.join(chr(x) for x in range(0,255))) for _ in range(upload_length-2))+b"."
+			random_message = b"."+bytearray(random.choice(range(0,255)) for _ in range(upload_length-2))+b"."
 			message = prefix+self.upload_encoding_list[upload_encoding].encode(second_prefix+random_message)
 			payload = self.DNS_proto.reverse_RR_type(upload_record_type)[2](self.DNS_common.get_character_from_userid(0)+message)
 
+		print(2)
 		# 3 - capped payload for maximum downstream
 		if tune_type == 3:
 			cap = self.DNS_proto.reverse_RR_type(upload_record_type)[4](upload_length-len(prefix), self.hostname, 0, self.upload_encoding_list[upload_encoding])
@@ -254,7 +261,7 @@ class DNS(UDP_generic.UDP_generic):
 			cap_length -= len(self.CONTROL_AUTOTUNE_CLIENT)+3
 
 			second_prefix = struct.pack("<BHHH", 0, self.DNS_proto.reverse_RR_type_num(download_record_type), cap_length, download_encoding)
-			random_message = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(cap - len(second_prefix)))
+			random_message = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(cap - len(second_prefix))).encode('ascii')
 			message = prefix+self.upload_encoding_list[upload_encoding].encode(second_prefix+random_message)
 			payload = self.DNS_proto.reverse_RR_type(upload_record_type)[2](self.DNS_common.get_character_from_userid(0)+message)
 
@@ -728,9 +735,9 @@ class DNS(UDP_generic.UDP_generic):
 				message = current_client.get_answer_queue().get_last()
 
 				if aq_l < 256:
-					ql = chr(aq_l)
+					ql = bytes([aq_l])
 				else:
-					ql = chr(255)
+					ql = b"\xFF"
 
 				encoding_class = current_client.get_download_encoding_class()
 				record_type = current_client.get_recordtype()
@@ -821,7 +828,7 @@ class DNS(UDP_generic.UDP_generic):
 		return 
 
 	def recv(self):
-		raw_message = ""
+		raw_message = b""
 		raw_message, addr = self.comms_socket.recvfrom(4096, socket.MSG_PEEK)
 
 		if len(raw_message) == 0:
@@ -878,9 +885,11 @@ class DNS(UDP_generic.UDP_generic):
 				return ("", None, 0, 0)
 			else:
 				# no zonefile record was found, this must be a tunnel message
-				edata = short_hostname.replace(".", "")
+				edata = short_hostname.replace(b".", b"")
 				userid = self.DNS_common.get_userid_from_character(edata[0:1])
+				print(userid)
 				current_client = self.lookup_client_pub((None, userid))
+				print(current_client)
 
 				if not current_client:
 					# no such client, drop this packet.
@@ -1001,7 +1010,7 @@ class DNS(UDP_generic.UDP_generic):
 		while not self._stop:
 			try:
 				readable, writable, exceptional = select.select(self.rlist, wlist, xlist, self.select_timeout)
-			except select.error, e:
+			except select.error as e:
 				print(e)
 				break
 
@@ -1029,7 +1038,7 @@ class DNS(UDP_generic.UDP_generic):
 					if (s in self.rlist) and not (s is self.comms_socket):
 						message = os.read(s, 4096)
 						while True:
-							if (len(message) < 4) or (message[0:1] != "\x45"): #Only care about IPv4
+							if (len(message) < 4) or (message[0:1] != b"\x45"): #Only care about IPv4
 								break
 							packetlen = struct.unpack(">H", message[2:4])[0] # IP Total length
 							if packetlen > len(message):
@@ -1110,13 +1119,13 @@ class DNS(UDP_generic.UDP_generic):
 			
 			return False
 		else:
-			self.hostname = self.config.get(self.get_module_configname(), "hostname")
-			if not common.is_hostname(self.hostname):
+			self.hostname = self.config.get(self.get_module_configname(), "hostname").encode('ascii')
+			if not common.is_hostname(self.hostname.decode('ascii')):
 				common.internal_print("'hostname' is not a domain name.".format(self.get_module_configname()), -1)
 
 				return False
-			if self.hostname[len(self.hostname)-1:] != ".":
-				self.hostname += "."
+			if self.hostname[len(self.hostname)-1:] != b".":
+				self.hostname += b"."
 
 		if self.config.has_option(self.get_module_configname(), "zonefile"):
 			self.zonefile = self.config.get(self.get_module_configname(), "zonefile")
@@ -1148,7 +1157,7 @@ class DNS(UDP_generic.UDP_generic):
 		server_socket = None
 		if self.zonefile:
 			(hostname, self.ttl, self.zone) = self.DNS_common.parse_zone_file(self.zonefile)
-			if hostname and (hostname+"." != self.hostname):
+			if hostname and (hostname+b"." != self.hostname):
 				common.internal_print("'hostname' in '{0}' section does not match with the zonefile's origin".format(self.get_module_configname()), -1)
 				return
 		try:

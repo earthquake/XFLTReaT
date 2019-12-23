@@ -48,11 +48,11 @@ class Base85_DNS():
 		return "Base85 DNS"
 
 	def encode(self, text):
-		return base64.b85encode(text).replace("=","")
+		return base64.b85encode(text).replace(b"=",b"")
 
 	def decode(self, text):
 		if len(text) % 4:
-			text += "="*(4-(len(text)%4))
+			text += b"="*(4-(len(text)%4))
 		return base64.b85decode(text)
 
 	def get_maximum_length(self, cap):
@@ -65,12 +65,12 @@ class Base64_DNS():
 		return "Base64 DNS"
 
 	def encode(self, text):
-		return base64.b64encode(text).replace("=","").replace("/", "-").replace("+", "_")
+		return base64.b64encode(text).replace(b"=",b"").replace(b"/", b"-").replace(b"+", b"_")
 
 	def decode(self, text):
 		if len(text) % 4:
 			text += "="*(4-(len(text)%4))
-		return base64.b64decode(text.replace("-", "/").replace("_", "+"))
+		return base64.b64decode(text.replace(b"-", b"/").replace(b"_", b"+"))
 
 	def get_maximum_length(self, cap):
 		full = int(math.floor(cap / 4))*3
@@ -82,15 +82,15 @@ class Base64():
 		return "Base64"
 
 	def encode(self, text):
-		return base64.b64encode(text).replace("=","")
+		return base64.b64encode(text).replace(b"=",b"")
 
 	def decode(self, text):
 		if len(text) % 4:
-			text += "="*(4-(len(text)%4))
+			text += b"="*(4-(len(text)%4))
 		try:
 			return base64.b64decode(text)
 		except:
-			return ""
+			return b""
 
 	def get_maximum_length(self, cap):
 		full = int(math.floor(cap / 4))*3
@@ -102,15 +102,15 @@ class Base32():
 		return "Base32"
 
 	def encode(self, text):
-		return base64.b32encode(text).replace("=","").lower()
+		return base64.b32encode(text).replace(b"=",b"").lower()
 
 	def decode(self, text):
 		if len(text) % 8:
-			text += "="*(8-(len(text)%8))
+			text += b"="*(8-(len(text)%8))
 		try:
 			return base64.b32decode(text.upper())
 		except:
-			return ""
+			return b""
 
 	def get_maximum_length(self, cap):
 		full = int(math.floor(cap / 8))*5
@@ -128,7 +128,7 @@ class Base16():
 		try:
 			return base64.b16decode(text.upper())
 		except:
-			return ""
+			return b""
 
 	def get_maximum_length(self, cap):
 		return int(math.floor(cap/2))
@@ -138,9 +138,9 @@ class ASCII85():
 		return "ASCII 85"
 
 	def encode(self, text):
-		encoded_text = ""
+		encoded_text = b""
 		if len(text) % 4:
-			text += "\x00"*(4-(len(text)%4))
+			text += b"\x00"*(4-(len(text)%4))
 		for i in range(0, len(text)/4):
 			c = struct.unpack(">I", text[i*4:(i+1)*4])[0]
 			N0 = (c/52200625) % 85 + 33
@@ -151,14 +151,14 @@ class ASCII85():
 
 			encoded_text += chr(N0)+chr(N1)+chr(N2)+chr(N3)+chr(N4)
 
-		return encoded_text.replace(".","{")
+		return encoded_text.replace(b".",b"{")
 
 	def decode(self, text):
 		if len(text) % 5:
 			return None
 
-		decoded_text = ""
-		text = text.replace("{",".")
+		decoded_text = b""
+		text = text.replace(b"{",b".")
 		for i in range(0, len(text)/5):
 			encoded_text = text[i*5:(i+1)*5]
 
@@ -209,13 +209,13 @@ class ASCII85():
 class Base91():
 	def __init__(self):
 		# modified table . -> ''
-		self.base91_alphabet = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-			'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-			'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-			'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '!', '#', '$',
-			'%', '&', '(', ')', '*', '+', ',', '\'', '/', ':', ';', '<', '=',
-			'>', '?', '@', '[', ']', '^', '_', '`', '{', '|', '}', '~', '"']
+		self.base91_alphabet = [b'A', b'B', b'C', b'D', b'E', b'F', b'G', b'H', b'I', b'J', b'K', b'L', b'M',
+			b'N', b'O', b'P', b'Q', b'R', b'S', b'T', b'U', b'V', b'W', b'X', b'Y', b'Z',
+			b'a', b'b', b'c', b'd', b'e', b'f', b'g', b'h', b'i', b'j', b'k', b'l', b'm',
+			b'n', b'o', b'p', b'q', b'r', b's', b't', b'u', b'v', b'w', b'x', b'y', b'z',
+			b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'!', b'#', b'$',
+			b'%', b'&', b'(', b')', b'*', b'+', b',', b'\'', b'/', b':', b';', b'<', b'=',
+			b'>', b'?', b'@', b'[', b']', b'^', b'_', b'`', b'{', b'|', b'}', b'~', b'"']
 
 		self.decode_table = dict((v,k) for k,v in enumerate(self.base91_alphabet))
 
@@ -223,56 +223,59 @@ class Base91():
 		return "Base91"
 
 	def decode(self, encoded_str):
-	    ''' Decode Base91 string to a bytearray '''
-	    v = -1
-	    b = 0
-	    n = 0
-	    out = bytearray()
-	    for strletter in encoded_str:
-	        if not strletter in self.decode_table:
-	            continue
-	        c = self.decode_table[strletter]
-	        if(v < 0):
-	            v = c
-	        else:
-	            v += c*91
-	            b |= v << n
-	            n += 13 if (v & 8191)>88 else 14
-	            while True:
-	                out += struct.pack('B', b&255)
-	                b >>= 8
-	                n -= 8
-	                if not n>7:
-	                    break
-	            v = -1
-	    if v+1:
-	        out += struct.pack('B', (b | v << n) & 255 )
-	    return out
+		''' Decode Base91 string to a bytearray '''
+		print(encoded_str)
+		v = -1
+		b = 0
+		n = 0
+		out = bytearray()
+		for strletter in encoded_str:
+			if not strletter in self.decode_table:
+				continue
+			c = self.decode_table[strletter]
+			if(v < 0):
+				v = c
+			else:
+				v += c*91
+				b |= v << n
+				n += 13 if (v & 8191)>88 else 14
+				while True:
+					out += struct.pack('B', b&255)
+					b >>= 8
+					n -= 8
+					if not n>7:
+						break
+				v = -1
+		if v+1:
+			out += struct.pack('B', (b | v << n) & 255 )
+		print(out)
+		return out
 
 	def encode(self, bindata):
-	    ''' Encode a bytearray to a Base91 string '''
-	    b = 0
-	    n = 0
-	    out = ''
-	    for count in range(len(bindata)):
-	        byte = bindata[count:count+1]
-	        b |= struct.unpack('B', byte)[0] << n
-	        n += 8
-	        if n>13:
-	            v = b & 8191
-	            if v > 88:
-	                b >>= 13
-	                n -= 13
-	            else:
-	                v = b & 16383
-	                b >>= 14
-	                n -= 14
-	            out += self.base91_alphabet[v % 91] + self.base91_alphabet[v // 91]
-	    if n:
-	        out += self.base91_alphabet[b % 91]
-	        if n>7 or b>90:
-	            out += self.base91_alphabet[b // 91]
-	    return out
+		''' Encode a bytearray to a Base91 string '''
+		b = 0
+		n = 0
+		out = b""
+		for count in range(len(bindata)):
+			byte = bindata[count:count+1]
+			b |= struct.unpack('B', byte)[0] << n
+			n += 8
+			if n>13:
+				v = b & 8191
+				if v > 88:
+					b >>= 13
+					n -= 13
+				else:
+					v = b & 16383
+					b >>= 14
+					n -= 14
+				out += self.base91_alphabet[v % 91] + self.base91_alphabet[v // 91]
+		if n:
+			out += self.base91_alphabet[b % 91]
+			if n>7 or b>90:
+				out += self.base91_alphabet[b // 91]
+
+		return out
 
 	def get_maximum_length(self, cap):
 		return int(float(cap)*(1/1.2306))
@@ -281,19 +284,19 @@ class Base91():
 class Base128():
 	def __init__(self):
 		# iodined tested values
-		self.base128_alphabet = ""
-		self.base128_alphabet  = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-		self.base128_alphabet += "\xbc\xbd\xbe\xbf"
-		self.base128_alphabet += "\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf"
-		self.base128_alphabet += "\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf"
-		self.base128_alphabet += "\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef"
-		self.base128_alphabet += "\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd"
-		self.base128_alphabet = list(self.base128_alphabet)
+		self.base128_alphabet = b""
+		self.base128_alphabet += b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+		self.base128_alphabet += b"\xbc\xbd\xbe\xbf"
+		self.base128_alphabet += b"\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf"
+		self.base128_alphabet += b"\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf"
+		self.base128_alphabet += b"\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef"
+		self.base128_alphabet += b"\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd"
+		self.base128_alphabet = bytearray(list(self.base128_alphabet))
 
 		self.base128_revalphabet = [0] * 256
 		for i in range(0, 128):
-			c = ord(self.base128_alphabet[i])
-			self.base128_revalphabet[c] = i
+			#c = ord(self.base128_alphabet[i])
+			self.base128_revalphabet[self.base128_alphabet[i]] = i
 
 	def get_name(self):
 		return "Base128"
@@ -347,7 +350,7 @@ class Base128():
 		out = ""
 
 		if blen < 8:
-			block += "a"
+			block += b"a"
 
 		out += chr(((self.base128_revalphabet[ord(block[0:1])] << 1) & 0xFF) | ((self.base128_revalphabet[ord(block[1:2])] >> 6) & 0xFF))
 		if blen > 2:
