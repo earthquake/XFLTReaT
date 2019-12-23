@@ -35,8 +35,8 @@ import threading
 import base64
 
 #local files
-import Stateful_module
-import TCP_generic
+from modules import Stateful_module
+from modules import TCP_generic
 import client
 import common
 import support.websocket_proto as WebSocket_proto
@@ -53,7 +53,7 @@ class WebSocket_thread(TCP_generic.TCP_generic_thread):
 		try:
 		
 			common.internal_print("Waiting for upgrade request", 0, self.verbosity, common.DEBUG)
-			response = self.comms_socket.recv(4096)
+			response = self.comms_socket.recv(4096).decode('ascii')
 
 			if len(response) == 0:
 				common.internal_print("Connection was dropped", 0, self.verbosity, common.DEBUG)
@@ -67,9 +67,9 @@ class WebSocket_thread(TCP_generic.TCP_generic_thread):
 
 			handshake = self.WebSocket_proto.calculate_handshake(handshake_key)
 			response = self.WebSocket_proto.switching_protocol(handshake)
-			self.comms_socket.send(response)
-		except:
-			common.internal_print("Socket error", -1, self.verbosity, common.DEBUG)
+			self.comms_socket.send(response.encode('ascii'))
+		except Exception as e:
+			common.internal_print("Socket error: {0}".format(e), -1, self.verbosity, common.DEBUG)
 			self.cleanup()
 			sys.exit(-1)
 
@@ -121,7 +121,7 @@ class WebSocket_thread(TCP_generic.TCP_generic_thread):
 			masked = self.WebSocket_proto.is_masked(length2b)
 			header_length = self.WebSocket_proto.get_header_length(masked, length_type)
 			
-			if message < header_length:
+			if len(message) < header_length:
 				common.internal_print("Malformed WebSocket packet: wrong header length", -1, self.verbosity, common.DEBUG)
 				return ""
 
@@ -161,12 +161,13 @@ class WebSocket(TCP_generic.TCP_generic):
 
 	def websocket_upgrade(self, server_socket):
 
-		request = self.WebSocket_proto.upgrade(base64.b64encode(os.urandom(9)).replace("/", "").replace("+", ""), self.config.get("Global", "remoteserverhost"), self.config.get(self.get_module_configname(), "serverport"), 13)
-		server_socket.send(request)
+		base64.b64encode(os.urandom(9)).decode('ascii').replace("/", "").replace("+", "")
+		request = self.WebSocket_proto.upgrade(base64.b64encode(os.urandom(9)).decode('ascii').replace("/", "").replace("+", ""), self.config.get("Global", "remoteserverhost"), self.config.get(self.get_module_configname(), "serverport"), 13)
+		server_socket.send(request.encode('ascii'))
 		
 		response = server_socket.recv(4096)
-		if response[9:12] != "101":
-			common.internal_print("Connection failed: {0}".format(response[0:response.find("\n")]), -1)
+		if response[9:12] != b"101":
+			common.internal_print("Connection failed: {0}".format(response[0:response.decode('ascii').find("\n")]), -1)
 
 			return False
 

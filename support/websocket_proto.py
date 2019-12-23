@@ -56,9 +56,9 @@ class WebSocket_Proto():
 		return res
 
 	def calculate_handshake(self, handshake_init):
-		magic_string = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+		magic_string = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 		h = hashlib.sha1()
-		h.update(handshake_init+magic_string)
+		h.update(handshake_init.encode('ascii')+magic_string)
 		return base64.b64encode(h.digest())
 
 	def switching_protocol(self, handshake):

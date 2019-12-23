@@ -35,7 +35,7 @@ import threading
 
 
 #local files
-import TCP_generic
+from modules import TCP_generic
 import client
 import common
 import encryption
@@ -206,7 +206,7 @@ class RDP_thread(TCP_generic.TCP_generic_thread):
 						read_rdp = False
 						read_pipe = True
 						# pipe/tunnel got signalled
-						if (overlapped_pipe.InternalHigh < 4) or (message_readfile_pipe[0:1] != "\x45"): #Only care about IPv4
+						if (overlapped_pipe.InternalHigh < 4) or (message_readfile_pipe[0:1] != b"\x45"): #Only care about IPv4
 							# too small which should not happen or not IPv4, so we just drop it.
 							continue
 
