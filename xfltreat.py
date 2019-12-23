@@ -21,9 +21,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import sys
+if sys.version_info <= (3,0):
+	print("Python 3 compatible version of XFLTReaT, please use the proper version.")
+	sys.exit(-1)
+
 import time
 import socket
-import sys
 import getopt
 import os
 import inspect
@@ -100,9 +104,6 @@ class XFLTReaT:
 
 	def run(self, argv):
 		self.banner()
-		if sys.version_info <= (3,0):
-			common.internal_print("Python 3 compatible version of XFLTReaT, please use the proper version.", -1)
-			sys.exit(-1)
 		try:
 			opts, args = getopt.getopt(argv, self.short, self.long)
 		except getopt.GetoptError:
