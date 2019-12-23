@@ -34,7 +34,7 @@ import struct
 import threading
 
 #local files
-import TCP_generic
+from modules import TCP_generic
 from interface import Interface
 import client
 import common
@@ -70,7 +70,7 @@ class SOCKS(TCP_generic.TCP_generic):
 			if version == "4":
 				server_socket.send(struct.pack(">BBH4s", self.socks.SOCKS4_VERSION, self.socks.SOCKS4_CD, 
 					int(self.config.get(self.get_module_configname(), "serverport")), 
-					socket.inet_aton(self.config.get("Global", "remoteserverip")))+userid)
+					socket.inet_aton(self.config.get("Global", "remoteserverip")))+userid.encode('ascii'))
 			else:
 				if self.config.has_option("Global", "remoteserverhost"):
 					if not common.is_hostname(self.config.get("Global", "remoteserverhost")):
@@ -80,7 +80,7 @@ class SOCKS(TCP_generic.TCP_generic):
 					domain = self.config.get("Global", "remoteserverhost")+"\x00"
 					server_socket.send(struct.pack(">BBH4s", self.socks.SOCKS4_VERSION, self.socks.SOCKS4_CD, 
 						int(self.config.get(self.get_module_configname(), "serverport")), 
-						socket.inet_aton("0.0.0.1"))+userid+domain)
+						socket.inet_aton("0.0.0.1"))+userid.encode('ascii')+domain.encode('ascii'))
 				else:
 					common.internal_print("Missing remoteserverhost attribute from config [Global] section", -1)
 
@@ -109,7 +109,8 @@ class SOCKS(TCP_generic.TCP_generic):
 
 			# receive response with selected auth method
 			response = server_socket.recv(2)
-			if (len(response) != 2) or (response[0:1] != chr(self.socks.SOCKS5_VERSION)):
+
+			if (len(response) != 2) or (ord(response[0:1]) != self.socks.SOCKS5_VERSION):
 				common.internal_print("Connection failed through the proxy server: Unknown error", -1)
 				return False
 
@@ -145,7 +146,7 @@ class SOCKS(TCP_generic.TCP_generic):
 							host_type = self.socks.SOCKS5_ADDR_TYPE[1]
 							connect_string = struct.pack(">BBBBB", self.socks.SOCKS5_VERSION, 
 								self.socks.SOCKS5_CD, 0, host_type, len(remoteserverhost))
-							connect_string += remoteserverhost+struct.pack(">H", int(self.config.get(self.get_module_configname(), "serverport")))
+							connect_string += remoteserverhost.encode('ascii')+struct.pack(">H", int(self.config.get(self.get_module_configname(), "serverport")))
 
 						if common.is_ipv6(remoteserverhost):
 							host_type = self.socks.SOCKS5_ADDR_TYPE[2]
@@ -159,7 +160,7 @@ class SOCKS(TCP_generic.TCP_generic):
 						server_socket.send(connect_string)
 
 						response = server_socket.recv(4096)
-						if (len(response) < 4) or (response[0:1] != chr(self.socks.SOCKS5_VERSION)):
+						if (len(response) < 4) or (ord(response[0:1]) != self.socks.SOCKS5_VERSION):
 							common.internal_print("Connection failed through the proxy server: Connection error to the server", -1)
 							return False
 

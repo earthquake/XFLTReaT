@@ -35,7 +35,7 @@ import struct
 import threading
 
 #local files
-import TCP_generic
+from modules import TCP_generic
 from interface import Interface
 import client
 import common
@@ -75,11 +75,11 @@ class HTTP_CONNECT(TCP_generic.TCP_generic):
 		serverport = int(self.config.get(self.get_module_configname(), "serverport"))
 		request = "CONNECT {0}:{1} HTTP/1.1\r\nHost: {2}\r\n\r\n".format(remoteserver, serverport, remoteserver)
 
-		server_socket.send(request)
+		server_socket.send(request.encode('ascii'))
 		
 		response = server_socket.recv(4096)
 
-		if response[9:12] != "200":
+		if response[9:12] != b"200":
 			common.internal_print("Connection failed: {0}".format(response[0:response.find("\n")]), -1)
 
 			return False
