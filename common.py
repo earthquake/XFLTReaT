@@ -205,7 +205,7 @@ def check_router_settings(config):
 			return False
 
 	if os_type == OS_WINDOWS:
-		import _winreg as registry
+		import winreg as registry
 		#HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\IPEnableRouter - DWORD 1 - enable
 		#"Routing and Remote Access" service - Enable, start
 		PATH = "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\"
@@ -400,7 +400,7 @@ def parse_scope_file(filename):
 
 			if type_ == 2:
 				regexp = re.match("^([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\.([0-9]{1,3})\-([0-9]{1,3})$", line)
-				for i in xrange(int(regexp.group(2)), int(regexp.group(3))+1):
+				for i in range(int(regexp.group(2)), int(regexp.group(3))+1):
 					add = ("{0}.{1}".format(regexp.group(1), i), "255.255.255.255", "32")
 					if add not in scope:
 						scope.append(add)

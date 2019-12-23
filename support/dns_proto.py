@@ -621,7 +621,7 @@ class DNS_Proto():
 		if qtype not in self.RR_types:
 			return None
 
-		for i in xrange(len(zone)):
+		for i in range(len(zone)):
 			if (zone[i][0] == self.RR_types[qtype][0]) and (zone[i][1] == short_hostname):
 				return zone[i]
 
@@ -734,7 +734,7 @@ class DNS_Proto():
 			# Format error/Server failure/Not Implemented/Refused
 			return (None, None, None, None, None, None, None, flags & 0xF)
 		# parse question
-		for q in xrange(questions):
+		for q in range(questions):
 			(hlen, question_hostname) = self.hostnamebin_to_hostname(msg[i:])
 			if hlen == 0:
 				return (None, None, None, None, None, None, None, 6)
@@ -753,7 +753,7 @@ class DNS_Proto():
 			else:
 				return (None, None, None, None, None, None, None, 6)
 
-		for q in xrange(answers):
+		for q in range(answers):
 			(hlen, question_hostname) = self.hostnamebin_to_hostname(msg[i:])
 			if len(msg) >= i+hlen+10:
 				i += hlen + 8
@@ -766,7 +766,7 @@ class DNS_Proto():
 			else:
 				return (None, None, None, None, None, None, None, 6)
 
-		for q in xrange(authority+additional):
+		for q in range(authority+additional):
 			(hlen, question_hostname) = self.hostnamebin_to_hostname(msg[i:])
 			if len(msg) >= i+hlen+10:
 				i += hlen + 8

@@ -588,7 +588,7 @@ class Interface():
 	def win_init(self):
 		global registry, win32file
 
-		import _winreg as registry
+		import winreg as registry
 		import win32file
 
 		return
@@ -599,7 +599,7 @@ class Interface():
 
 		try:
 			regkey = registry.OpenKey(registry.HKEY_LOCAL_MACHINE, self.WINDOWS_ADAPTER_KEY)
-			for i in xrange(10000):
+			for i in range(10000):
 				key_name = registry.EnumKey(regkey, i)
 				try:
 					regsubkey = registry.OpenKey(regkey, key_name)
