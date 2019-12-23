@@ -66,8 +66,13 @@ class SCTP_generic(TCP_generic.TCP_generic):
 
 		# bit hacky, but it needs to be loaded somewhere.
 		if self.os_check():
-			import sctp
-			self.sctp = sctp
+			try:
+				import sctp
+				self.sctp = sctp
+			except ImportError as e:
+				common.internal_print("Something wrong with the installed pysctp package: {0}".format(e), -1)
+				common.internal_print("Try to build it from source. Howto: https://github.com/earthquake/XFLTReaT/wiki/Linux".format(e), -1)
+				sys.exit(-1)
 
 		return
 
