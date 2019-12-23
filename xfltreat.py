@@ -210,7 +210,7 @@ class XFLTReaT:
 			if m != 'Generic_module' and m[:2] != "__":
 				module_attributes = getattr(module_list, m)
 				# 3. get the classes from the modules
-				module_classes = [c for c in module_attributes.__dict__.values() if inspect.isclass(c)]
+				module_classes = [c for c in list(module_attributes.__dict__.values()) if inspect.isclass(c)]
 				# 4. select classes that are XFLTReaT modules
 				real_modules = [c for c in module_classes if (issubclass(c, Generic_module) and (c not in self.forbidden_modules_instance))]
 				for r in real_modules:
