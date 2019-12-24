@@ -138,9 +138,7 @@ class DNS(UDP_generic.UDP_generic):
 	# autotune control message handler
 	# this handler answers to the tune requests to find the best bandwidth
 	def cmh_autotune(self, module, message, additional_data, cm):
-		print(message)
 		message = message[len(self.CONTROL_AUTOTUNE)+2:]
-		print(message)
 		# get tune type, requested record type, length and encoding for crafting the answer
 		(query_type, RRtype, length, encode_class) = struct.unpack("<BHHH", message[0:7])
 		if self.DNS_proto.get_RR_type(RRtype)[0] == None:
@@ -232,18 +230,15 @@ class DNS(UDP_generic.UDP_generic):
 			payload = self.DNS_proto.reverse_RR_type(upload_record_type)[2](self.DNS_common.get_character_from_userid(0)+message)
 
 		# 1 - content check with the most famous cryptographically secure hash algorithm (pun intended)
-		print(0)
 		if tune_type == 1:
 			cap = self.DNS_proto.reverse_RR_type(upload_record_type)[4](upload_length-len(prefix), self.hostname, 0, self.upload_encoding_list[upload_encoding])
 			
 			random_message = bytearray(random.choice(range(128,255)) for _ in range(cap - len(second_prefix)))
 			crc = struct.pack("<I", binascii.crc32(random_message))
 			message = prefix+self.upload_encoding_list[upload_encoding].encode(second_prefix+random_message)
-			print(message)
 			payload = self.DNS_proto.reverse_RR_type(upload_record_type)[2](self.DNS_common.get_character_from_userid(0)+message)
 
 		# 2 - content check for encoding
-		print(1)
 		if tune_type == 2:
 			# BIND9 fails to forward response if: Plaintext + pre+postfixed by "."
 			#random_message = "."+''.join(random.choice(''.join(chr(x) for x in range(0,255))) for _ in range(upload_length-2))+b"."
@@ -251,7 +246,6 @@ class DNS(UDP_generic.UDP_generic):
 			message = prefix+self.upload_encoding_list[upload_encoding].encode(second_prefix+random_message)
 			payload = self.DNS_proto.reverse_RR_type(upload_record_type)[2](self.DNS_common.get_character_from_userid(0)+message)
 
-		print(2)
 		# 3 - capped payload for maximum downstream
 		if tune_type == 3:
 			cap = self.DNS_proto.reverse_RR_type(upload_record_type)[4](upload_length-len(prefix), self.hostname, 0, self.upload_encoding_list[upload_encoding])
@@ -395,7 +389,7 @@ class DNS(UDP_generic.UDP_generic):
 				break
 			upload_encoding = best_upload_encoding
 			download_encoding = 0
-			upload_length = (l + m)/2
+			upload_length = (l + m)//2
 			download_length = 0
 			upload_record_type = best_upload_record_type
 			download_record_type = "CNAME"
@@ -453,7 +447,7 @@ class DNS(UDP_generic.UDP_generic):
 				download_length = l
 				break
 
-			download_length = (l + m)/2
+			download_length = (l + m)//2
 			upload_encoding = best_upload_encoding
 			download_encoding = best_download_encoding
 			upload_length = best_upload_length
@@ -509,8 +503,8 @@ class DNS(UDP_generic.UDP_generic):
 		self.clients.append(client_local)
 		client_local.set_userid(0)
 		client_local.set_recordtype("CNAME")
-		client_local.set_upload_encoding_class(encoding.Base32())
-		client_local.set_download_encoding_class(encoding.Base32())
+		client_local.set_upload_encoding_class(self.upload_encoding_list[0])
+		client_local.set_download_encoding_class(self.download_encoding_list[0])
 
 		return
 
@@ -586,8 +580,9 @@ class DNS(UDP_generic.UDP_generic):
 		#!!!additional_data = (additional_data[0], self.next_userid, client_local)
 		client_local.set_userid(self.next_userid)
 		client_local.set_recordtype("CNAME")
-		client_local.set_upload_encoding_class(encoding.Base32())
-		client_local.set_download_encoding_class(encoding.Base32())
+
+		client_local.set_upload_encoding_class(self.upload_encoding_list[0])
+		client_local.set_download_encoding_class(self.download_encoding_list[0])		
 
 		# moving query to new client
 		client_local.get_query_queue().put(self.lookup_client_pub((None, 0)).get_query_queue().get())
@@ -686,11 +681,11 @@ class DNS(UDP_generic.UDP_generic):
 		return
 
 	def do_dummy_packet(self):
-		chrset = "abcdefghijklmnopqrstuvwxyz0123456789-"
-		random_content = ""
+		chrset = b"abcdefghijklmnopqrstuvwxyz0123456789-"
+		random_content = b""
 		for i in range(0, 25):
 			rpos = random.randint(0,len(chrset)-1)
-			random_content += chrset[rpos]
+			random_content += bytes([chrset[rpos]])
 
 		self.send(common.CONTROL_CHANNEL_BYTE, common.CONTROL_DUMMY_PACKET + random_content, (self.server_tuple, self.userid, None))
 
@@ -708,9 +703,9 @@ class DNS(UDP_generic.UDP_generic):
 		userid = additional_data[1]
 		current_client = additional_data[2]
 
-		ql = "\x00" # queue length required bytes
-		fragment = ""
-		data = ""
+		ql = b"\x00" # queue length required bytes
+		fragment = b""
+		data = b""
 
 		if channel_type == common.CONTROL_CHANNEL_BYTE:
 			channel_byte = common.CONTROL_CHANNEL_BYTE
@@ -725,7 +720,7 @@ class DNS(UDP_generic.UDP_generic):
 			self.burn_unanswered_packets()
 
 			# creating packets and saving them to the queue
-			self.fragmentnq(ord(channel_byte), current_client, message)
+			self.fragmentnq(channel_byte, current_client, message)
 
 			RRtype = self.DNS_proto.reverse_RR_type(current_client.get_recordtype())
 			
@@ -783,9 +778,9 @@ class DNS(UDP_generic.UDP_generic):
 				message = current_client.get_answer_queue().get()
 				if i == (top - 1):
 					if (aq_l - i - 1) < 256:
-						ql = chr(aq_l - i -1)
+						ql = bytes([aq_l - i -1])
 					else:
-						ql = chr(255)
+						ql = b"\xFF"
 
 				pre_message = current_client.get_download_encoding_class().encode(ql+message)
 				transformed_message = RRtype[2](self.DNS_common.get_character_from_userid(userid)+pre_message)
@@ -800,24 +795,24 @@ class DNS(UDP_generic.UDP_generic):
 			i = 0
 			# client side
 			while len(message) > self.qMTU:
-				fragment = ql+self.DNS_common.create_fragment_header(ord(channel_byte), self.qpacket_number, i, 0)+message[0:self.qMTU]
+				fragment = ql+self.DNS_common.create_fragment_header(channel_byte, self.qpacket_number, i, 0)+message[0:self.qMTU]
 				message = message[self.qMTU:]
 				efragment = self.DNS_common.get_character_from_userid(userid)+self.upload_encoding_class.encode(fragment)
-				data = ""
+				data = b""
 				# TODO pack record hostname?
 				for j in range(0,int(math.ceil(float(len(efragment))/63.0))):
-					data += efragment[j*63:(j+1)*63]+"."
+					data += efragment[j*63:(j+1)*63]+b"."
 				packet = self.DNS_proto.build_query(int(random.random() * 65535), data, self.hostname, self.RRtype_num)
 				common.internal_print("DNS packet sent_: {0} - packet number: {1} / fragment: {2}".format(len(fragment), self.qpacket_number, i), 0, self.verbosity, common.DEBUG)
 				self.comms_socket.sendto(packet, addr)
 				i += 1
 
-			fragment = ql+self.DNS_common.create_fragment_header(ord(channel_byte), self.qpacket_number, i, 1)+message[0:self.qMTU]
+			fragment = ql+self.DNS_common.create_fragment_header(channel_byte, self.qpacket_number, i, 1)+message[0:self.qMTU]
 			efragment = self.DNS_common.get_character_from_userid(userid)+self.upload_encoding_class.encode(fragment)
-			data = ""
+			data = b""
 			# TODO pack record hostname?
 			for h in range(0,int(math.ceil(float(len(efragment))/63.0))):
-				data += efragment[h*63:(h+1)*63]+"."
+				data += efragment[h*63:(h+1)*63]+b"."
 
 			packet = self.DNS_proto.build_query(int(random.random() * 65535), data, self.hostname, self.RRtype_num)
 			common.internal_print("DNS packet sent: {0} - packet number: {1} / fragment: {2}".format(len(fragment), self.qpacket_number, i), 0, self.verbosity, common.DEBUG)		
@@ -887,9 +882,7 @@ class DNS(UDP_generic.UDP_generic):
 				# no zonefile record was found, this must be a tunnel message
 				edata = short_hostname.replace(b".", b"")
 				userid = self.DNS_common.get_userid_from_character(edata[0:1])
-				print(userid)
 				current_client = self.lookup_client_pub((None, userid))
-				print(current_client)
 
 				if not current_client:
 					# no such client, drop this packet.
@@ -951,7 +944,7 @@ class DNS(UDP_generic.UDP_generic):
 					# 4. cannot think any other reasons
 					message = current_client.get_upload_encoding_class().decode(edata)
 				except:
-					return ("", None, 0, 0)
+					return ("", None, 0, 0)					
 
 				header = message[1:3]
 				packet_number = self.DNS_common.get_packet_number_from_header(header)
@@ -987,6 +980,9 @@ class DNS(UDP_generic.UDP_generic):
 				return ("", None, 0, 0)
 
 			message = self.download_encoding_class.decode(message)
+			if len(message) == b"":
+				return ("", None, 0, 0)
+
 			header = message[1:3]
 			packet_number = self.DNS_common.get_packet_number_from_header(header)
 			fragment_number = self.DNS_common.get_fragment_number_from_header(header)

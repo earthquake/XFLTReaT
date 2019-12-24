@@ -220,7 +220,7 @@ class DNS_common():
 		else:
 			last_fragment = 0x00
 
-		return struct.pack(">H", (channel_bit << 8) | ((packet_num & 0x3FF) << 5) | ((fragment_num & 0x0F) << 1) | last_fragment)
+		return struct.pack(">H", (int.from_bytes(channel_bit, "big") << 8) | ((packet_num & 0x3FF) << 5) | ((fragment_num & 0x0F) << 1) | last_fragment)
 
 	def get_channel_byte_from_header(self, header):
 		header_num = struct.unpack(">H", header)[0]

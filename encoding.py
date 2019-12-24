@@ -69,7 +69,7 @@ class Base64_DNS():
 
 	def decode(self, text):
 		if len(text) % 4:
-			text += "="*(4-(len(text)%4))
+			text += b"="*(4-(len(text)%4))
 		return base64.b64decode(text.replace(b"-", b"/").replace(b"_", b"+"))
 
 	def get_maximum_length(self, cap):
@@ -224,15 +224,15 @@ class Base91():
 
 	def decode(self, encoded_str):
 		''' Decode Base91 string to a bytearray '''
-		print(encoded_str)
 		v = -1
 		b = 0
 		n = 0
 		out = bytearray()
 		for strletter in encoded_str:
-			if not strletter in self.decode_table:
+			strbytes = bytes([strletter])
+			if not strbytes in self.decode_table:
 				continue
-			c = self.decode_table[strletter]
+			c = self.decode_table[strbytes]
 			if(v < 0):
 				v = c
 			else:
@@ -248,7 +248,7 @@ class Base91():
 				v = -1
 		if v+1:
 			out += struct.pack('B', (b | v << n) & 255 )
-		print(out)
+
 		return out
 
 	def encode(self, bindata):
@@ -303,80 +303,80 @@ class Base128():
 
 	def encodeblock(self, block):
 		blen = len(block)
-		out = ""
+		out = b""
 
-		out += self.base128_alphabet[ord(block[0:1]) >> 1]
+		out += bytes([self.base128_alphabet[block[0] >> 1]])
 		if blen > 1:
-			out += self.base128_alphabet[(((ord(block[0:1]) & 0x01) << 6) & 0xFF) | ((ord(block[1:2]) >> 2) & 0xFF)]
+			out += bytes([self.base128_alphabet[(((block[0] & 0x01) << 6) & 0xFF) | ((block[1] >> 2) & 0xFF)]])
 		else:
-			out += self.base128_alphabet[(((ord(block[0:1]) & 0x01) << 6) & 0xFF)]
+			out += bytes([self.base128_alphabet[(((block[0] & 0x01) << 6) & 0xFF)]])
 			return out
 
 		if blen > 2:
-			out += self.base128_alphabet[(((ord(block[1:2]) & 0x03) << 5) & 0xFF) | ((ord(block[2:3]) >> 3) & 0xFF)]
+			out += bytes([self.base128_alphabet[(((block[1] & 0x03) << 5) & 0xFF) | ((block[2] >> 3) & 0xFF)]])
 		else:
-			out += self.base128_alphabet[(((ord(block[1:2]) & 0x03) << 5) & 0xFF)]
+			out += bytes([self.base128_alphabet[(((block[1] & 0x03) << 5) & 0xFF)]])
 			return out
 
 		if blen > 3:
-			out += self.base128_alphabet[(((ord(block[2:3]) & 0x07) << 4) & 0xFF) | ((ord(block[3:4]) >> 4) & 0xFF)]
+			out += bytes([self.base128_alphabet[(((block[2] & 0x07) << 4) & 0xFF) | ((block[3] >> 4) & 0xFF)]])
 		else:
-			out += self.base128_alphabet[(((ord(block[2:3]) & 0x07) << 4) & 0xFF)]
+			out += bytes([self.base128_alphabet[(((block[2] & 0x07) << 4) & 0xFF)]])
 			return out
 
 		if blen > 4:
-			out += self.base128_alphabet[(((ord(block[3:4]) & 0x0F) << 3) & 0xFF) | ((ord(block[4:5]) >> 5) & 0xFF)]
+			out += bytes([self.base128_alphabet[(((block[3] & 0x0F) << 3) & 0xFF) | ((block[4] >> 5) & 0xFF)]])
 		else:
-			out += self.base128_alphabet[(((ord(block[3:4]) & 0x0F) << 3) & 0xFF)]
+			out += bytes([self.base128_alphabet[(((block[3] & 0x0F) << 3) & 0xFF)]])
 			return out
 
 		if blen > 5:
-			out += self.base128_alphabet[(((ord(block[4:5]) & 0x1F) << 2) & 0xFF) | ((ord(block[5:6]) >> 6) & 0xFF)]
+			out += bytes([self.base128_alphabet[(((block[4] & 0x1F) << 2) & 0xFF) | ((block[5] >> 6) & 0xFF)]])
 		else:
-			out += self.base128_alphabet[(((ord(block[4:5]) & 0x1F) << 2) & 0xFF)]
+			out += bytes([self.base128_alphabet[(((block[4] & 0x1F) << 2) & 0xFF)]])
 			return out
 
 		if blen > 6:
-			out += self.base128_alphabet[(((ord(block[5:6]) & 0x3F) << 1) & 0xFF) | ((ord(block[6:7]) >> 7) & 0xFF)]
-			out += self.base128_alphabet[ord(block[6:7]) & 0x7F]
+			out += bytes([self.base128_alphabet[(((block[5] & 0x3F) << 1) & 0xFF) | ((block[6] >> 7) & 0xFF)]])
+			out += bytes([self.base128_alphabet[block[6] & 0x7F]])
 		else:
-			out += self.base128_alphabet[(((ord(block[5:6]) & 0x3F) << 1) & 0xFF)]
+			out += bytes([self.base128_alphabet[(((block[5] & 0x3F) << 1) & 0xFF)]])
 			return out
 
 		return out
 
 	def decodeblock(self, block):
 		blen = len(block)
-		out = ""
+		out = b""
 
 		if blen < 8:
 			block += b"a"
 
-		out += chr(((self.base128_revalphabet[ord(block[0:1])] << 1) & 0xFF) | ((self.base128_revalphabet[ord(block[1:2])] >> 6) & 0xFF))
+		out += bytes([((self.base128_revalphabet[block[0]] << 1) & 0xFF) | ((self.base128_revalphabet[block[1]] >> 6) & 0xFF)])
 		if blen > 2:
-			out += chr(((self.base128_revalphabet[ord(block[1:2])] << 2) & 0xFF) | ((self.base128_revalphabet[ord(block[2:3])] >> 5) & 0xFF))
+			out += bytes([((self.base128_revalphabet[block[1]] << 2) & 0xFF) | ((self.base128_revalphabet[block[2]] >> 5) & 0xFF)])
 		if blen > 3:
-			out += chr(((self.base128_revalphabet[ord(block[2:3])] << 3) & 0xFF) | ((self.base128_revalphabet[ord(block[3:4])] >> 4) & 0xFF))
+			out += bytes([((self.base128_revalphabet[block[2]] << 3) & 0xFF) | ((self.base128_revalphabet[block[3]] >> 4) & 0xFF)])
 		if blen > 4:
-			out += chr(((self.base128_revalphabet[ord(block[3:4])] << 4) & 0xFF) | ((self.base128_revalphabet[ord(block[4:5])] >> 3) & 0xFF))
+			out += bytes([((self.base128_revalphabet[block[3]] << 4) & 0xFF) | ((self.base128_revalphabet[block[4]] >> 3) & 0xFF)])
 		if blen > 5:
-			out += chr(((self.base128_revalphabet[ord(block[4:5])] << 5) & 0xFF) | ((self.base128_revalphabet[ord(block[5:6])] >> 2) & 0xFF))
+			out += bytes([((self.base128_revalphabet[block[4]] << 5) & 0xFF) | ((self.base128_revalphabet[block[5]] >> 2) & 0xFF)])
 		if blen > 6:
-			out += chr(((self.base128_revalphabet[ord(block[5:6])] << 6) & 0xFF) | ((self.base128_revalphabet[ord(block[6:7])] >> 1) & 0xFF))
+			out += bytes([((self.base128_revalphabet[block[5]] << 6) & 0xFF) | ((self.base128_revalphabet[block[6]] >> 1) & 0xFF)])
 		if blen > 7:
-			out += chr(((self.base128_revalphabet[ord(block[6:7])] << 7) & 0xFF) | (self.base128_revalphabet[ord(block[7:8])] & 0xFF))
+			out += bytes([((self.base128_revalphabet[block[6]] << 7) & 0xFF) | (self.base128_revalphabet[block[7]] & 0xFF)])
 
 		return out
 
 	def encode(self, text):
-		result = ""
+		result = b""
 		for i in range(0,int(math.ceil(float(len(text)) / 7.0))):
 			result += self.encodeblock(text[i*7:(i+1)*7])
 
 		return result
 
 	def decode(self, text):
-		result = ""
+		result = b""
 		for i in range(0,int(math.ceil(float(len(text)) / 8.0))):
 			result += self.decodeblock(text[i*8:(i+1)*8])
 		return result
