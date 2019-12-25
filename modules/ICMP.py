@@ -655,8 +655,8 @@ class ICMP(Stateless_module.Stateless_module):
 			common.internal_print("Starting module: {0} on {1}".format(self.get_module_name(), self.config.get("Global", "serverbind")))
 		
 			server_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
-			if (self.os_type == common.OS_WINDOWS) or (self.os_type == common.OS_MACOSX):
-				common.internal_print("This module can be run in client mode only on this operating system.", -1)
+			if (self.os_type == common.OS_WINDOWS) or (self.os_type == common.OS_MACOSX) or (self.os_type == common.OS_FREEBSD):
+				common.internal_print("This module can be run in client mode only on this operating system: {0}".format(self.module_name), -1)
 
 				self.cleanup()
 				return

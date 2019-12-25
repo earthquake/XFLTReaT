@@ -158,7 +158,7 @@ class Interface():
 		sockfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		try:
 			# set IP
-			ifr  = struct.pack('<16sH2s4s8s', dev.encode('ascii'), socket.AF_INET, ("\x00"*2).encode('ascii'), socket.inet_aton(ip), ("\x00"*8).encode('ascii'))
+			ifr  = struct.pack('<16sH2s4s8s', dev.encode('ascii'), socket.AF_INET, b"\x00"*2, socket.inet_aton(ip), b"\x00"*8)
 			fcntl.ioctl(sockfd, self.IOCTL_LINUX_SIOCSIFADDR, ifr)
 
 			# get flags
@@ -194,7 +194,7 @@ class Interface():
 	def lin_set_mtu(self, dev, mtu):
 		s = socket.socket(type=socket.SOCK_DGRAM)
 		try:
-			ifr = struct.pack('<16sH', dev.encode('ascii'), mtu) + ('\x00'*14).encode('ascii')
+			ifr = struct.pack('<16sH', dev.encode('ascii'), mtu) + b"\x00"*14
 			fcntl.ioctl(s, self.IOCTL_LINUX_SIOCSIFMTU, ifr)
 		except Exception as e:
 			common.internal_print("Cannot set MTU ({0}) on interface: {1}".format(mtu, e), -1)
@@ -433,7 +433,7 @@ class Interface():
 	def mac_set_mtu(self, dev, mtu):
 		s = socket.socket(type=socket.SOCK_DGRAM)
 		try:
-			ifr = struct.pack('<16sH', self.iface_name.encode('ascii'), 1350) + ('\x00'*14).encode('ascii')
+			ifr = struct.pack('<16sH', self.iface_name.encode('ascii'), 1350) + b"\x00"*14
 			fcntl.ioctl(s, self.IOCTL_MACOSX_SIOCSIFMTU, ifr)
 		except Exception as e:
 			common.internal_print("Cannot set MTU ({0}) on interface".format(mtu), -1)
@@ -882,16 +882,16 @@ class Interface():
 	def freebsd_tun_alloc(self, dev, flags):
 		try:
 			sockfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-			ifr = struct.pack('<16si', 'tun'.encode('ascii'), 0)
+			ifr = struct.pack('<16si', b"tun", 0)
 			self.iface_name = fcntl.ioctl(sockfd, self.IOCTL_FREEBSD_SIOCIFCREATE2, ifr)
-			self.iface_name = self.iface_name.rstrip("\x00")
+			self.iface_name = self.iface_name.rstrip(b"\x00")
 
-			buff = array.array('c', dev+"\x00")
+			buff = array.array('B', dev.encode('ascii')+b"\x00")
 			caddr_t, _ = buff.buffer_info()
-			ifr = struct.pack('16sP', self.iface_name.encode('ascii'), caddr_t);
+			ifr = struct.pack('16sP', self.iface_name, caddr_t);
 
 			fcntl.ioctl(sockfd, self.IOCTL_FREEBSD_SIOCSIFNAME, ifr)
-			tun = os.open("/dev/"+self.iface_name, os.O_RDWR | os.O_NONBLOCK)
+			tun = os.open(b"/dev/"+self.iface_name, os.O_RDWR | os.O_NONBLOCK)
 			self.iface_name = dev
 
 		except IOError as e:
@@ -905,12 +905,12 @@ class Interface():
 		sockfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		try:
 			#set ip, serverip and netmask
-			ifaliasreq = struct.pack('<16sBBHI8sBBHI8sBBHI8sI', self.iface_name,
-				16, socket.AF_INET, 0, struct.unpack('<I', socket.inet_aton(ip))[0], '\x00'*8,
-				16, socket.AF_INET, 0, struct.unpack('<I', socket.inet_aton(serverip))[0], '\x00'*8,
+			ifaliasreq = struct.pack('<16sBBHI8sBBHI8sBBHI8sI', self.iface_name.encode('ascii'),
+				16, socket.AF_INET, 0, struct.unpack('<I', socket.inet_aton(ip))[0], b"\x00"*8,
+				16, socket.AF_INET, 0, struct.unpack('<I', socket.inet_aton(serverip))[0], b"\x00"*8,
 				16, socket.AF_INET, 0, struct.unpack('<I', socket.inet_aton('255.255.255.255'))[0],
-				'\x00'*8,
-				0)
+				b"\x00"*8, 0)
+
 			fcntl.ioctl(sockfd, self.IOCTL_FREEBSD_SIOCAIFADDR, ifaliasreq)
 
 			# get flags
@@ -925,6 +925,7 @@ class Interface():
 			fcntl.ioctl(sockfd, self.IOCTL_FREEBSD_SIOCSIFFLAGS, ifr)
 		except Exception as e:
 			common.internal_print("Something went wrong with setting up the interface.", -1)
+			raise
 			print(e)
 			sys.exit(-1)
 
@@ -944,7 +945,7 @@ class Interface():
 	def freebsd_set_mtu(self, dev, mtu):
 		s = socket.socket(type=socket.SOCK_DGRAM)
 		try:
-			ifr = struct.pack('<16sH', self.iface_name.encode('ascii'), mtu) + ('\x00'*14).encode('ascii')
+			ifr = struct.pack('<16sH', self.iface_name.encode('ascii'), mtu) + b"\x00"*14
 			fcntl.ioctl(s, self.IOCTL_FREEBSD_SIOCSIFMTU, ifr)
 		except Exception as e:
 			common.internal_print("Cannot set MTU ({0}) on interface".format(mtu), -1)
@@ -960,7 +961,7 @@ class Interface():
 
 		s = socket.socket(type=socket.SOCK_DGRAM)
 		try:
-			ifr = struct.pack('<16s', self.iface_name.encode('ascii')) + ('\x00'*16).encode('ascii')
+			ifr = struct.pack('<16s', self.iface_name.encode('ascii')) + b"\x00"*16
 			fcntl.ioctl(s, self.IOCTL_FREEBSD_SIOCIFDESTROY, ifr)
 		except Exception as e:
 			common.internal_print("Cannot destroy interface: {0}".format(dev), -1)
