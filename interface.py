@@ -666,7 +666,7 @@ class Interface():
 
 		# create a win32file for manipulating the TUN/TAP interface
 		try:
-			self.wintun = win32file.CreateFile("\\\\.\\Global\\{0}.tap".format(guid),
+			self.wintun = win32file.CreateFile(u"\\\\.\\Global\\{0}.tap".format(guid),
 				win32file.GENERIC_READ | win32file.GENERIC_WRITE,
 				win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
 				None, win32file.OPEN_EXISTING,
@@ -675,11 +675,13 @@ class Interface():
 		except pywintypes.error as e:
 			if e.args[0] == 31: # A device attached to the system is not functioning.
 				common.internal_print("The TUN device is already in use. Maybe another XFLTReaT is running.", -1)
-				sys.exit(-1)	
-
+				sys.exit(-1)
+			if e.args[0] == 2:
+				common.internal_print("Driver might not be loaded, device cannot be found.", -1)
+				sys.exit(-1)
 
 		# have Windows consider the interface now connected
-		win32file.DeviceIoControl(self.wintun, TAP_IOCTL_SET_MEDIA_STATUS, '\x01\x00\x00\x00', 1, None)
+		win32file.DeviceIoControl(self.wintun, TAP_IOCTL_SET_MEDIA_STATUS, b"\x01\x00\x00\x00", 1, None)
 
 		return self.wintun
 
@@ -695,7 +697,7 @@ class Interface():
 		win32file.DeviceIoControl(self.wintun, TAP_WIN_IOCTL_CONFIG_TUN,
 			settings, 1, None)
 
-		lease = '\x10\x0e\x00\x00'
+		lease = b"\x10\x0e\x00\x00"
 		settings = socket.inet_aton(ip) + integer_netmask + socket.inet_aton(ip) + lease
 
 		iface_name = self.WIN_get_subinterface_name()
@@ -895,8 +897,7 @@ class Interface():
 			self.iface_name = dev
 
 		except IOError as e:
-			print(e)
-			common.internal_print("Error: Cannot create tunnel. Is {0} in use?".format(dev), -1)
+			common.internal_print("Error: Cannot create tunnel. Is {0} in use?: {e}".format(dev, e), -1)
 			sys.exit(-1)
 
 		return tun
@@ -924,9 +925,7 @@ class Interface():
 			# iface up
 			fcntl.ioctl(sockfd, self.IOCTL_FREEBSD_SIOCSIFFLAGS, ifr)
 		except Exception as e:
-			common.internal_print("Something went wrong with setting up the interface.", -1)
-			raise
-			print(e)
+			common.internal_print("Something went wrong with setting up the interface: {0}".format(e), -1)
 			sys.exit(-1)
 
 		# adding new route for forwarding packets properly.
