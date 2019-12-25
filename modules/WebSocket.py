@@ -53,7 +53,7 @@ class WebSocket_thread(TCP_generic.TCP_generic_thread):
 		try:
 		
 			common.internal_print("Waiting for upgrade request", 0, self.verbosity, common.DEBUG)
-			response = self.comms_socket.recv(4096).decode('ascii')
+			response = self.comms_socket.recv(4096)
 
 			if len(response) == 0:
 				common.internal_print("Connection was dropped", 0, self.verbosity, common.DEBUG)
@@ -69,6 +69,7 @@ class WebSocket_thread(TCP_generic.TCP_generic_thread):
 			response = self.WebSocket_proto.switching_protocol(handshake)
 			self.comms_socket.send(response.encode('ascii'))
 		except Exception as e:
+			raise
 			common.internal_print("Socket error: {0}".format(e), -1, self.verbosity, common.DEBUG)
 			self.cleanup()
 			sys.exit(-1)

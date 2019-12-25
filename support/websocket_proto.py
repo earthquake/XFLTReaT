@@ -49,7 +49,7 @@ class WebSocket_Proto():
 		return upgrade_request
 
 	def get_handshake_init(self, request):
-		r = re.compile("Sec-WebSocket-Key: ([0-9a-zA-Z=/+]*)")
+		r = re.compile(b"Sec-WebSocket-Key: ([0-9a-zA-Z=/+]*)")
 		res = r.search(request)
 		if res:
 			res = r.search(request).group(1)
@@ -58,7 +58,7 @@ class WebSocket_Proto():
 	def calculate_handshake(self, handshake_init):
 		magic_string = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 		h = hashlib.sha1()
-		h.update(handshake_init.encode('ascii')+magic_string)
+		h.update(handshake_init+magic_string)
 		return base64.b64encode(h.digest())
 
 	def switching_protocol(self, handshake):
